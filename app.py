@@ -62,7 +62,7 @@ if 'current_user' not in st.session_state:
     st.session_state['current_user'] = None
 if 'analysis_data' not in st.session_state:
     st.session_state['analysis_data'] = {}
-if 'results' not in st.session_state: # Results session'ı başlatıyoruz
+if 'results' not in st.session_state:
     st.session_state['results'] = {}
 
 db_manager.init_db()
@@ -79,9 +79,10 @@ def login_student(name, surname):
         st.warning("⚠️ Lütfen Ad ve Soyad alanlarını doldurunuz.")
 
 def login_teacher(username, password):
-    if username == "admin" and password == "1234":
+    # --- GÜNCELLENEN GİRİŞ BİLGİLERİ ---
+    if username == "Balaban Koçluk" and password == "Balaban_İstanbul_Gümüşhane":
         st.session_state['auth_status'] = 'teacher'
-        st.session_state['current_user'] = "Yönetici"
+        st.session_state['current_user'] = "Yönetici (Balaban Koçluk)"
         st.rerun()
     else:
         st.error("❌ Hatalı kullanıcı adı veya şifre!")
@@ -129,8 +130,8 @@ def main():
                     login_student(s_name, s_surname)
             
             with tab_teacher:
-                t_user = st.text_input("Kullanıcı Adı", placeholder="admin")
-                t_pass = st.text_input("Şifre", type="password", placeholder="****")
+                t_user = st.text_input("Kullanıcı Adı", placeholder="Kullanıcı Adı")
+                t_pass = st.text_input("Şifre", type="password", placeholder="Şifre")
                 st.markdown("<br>", unsafe_allow_html=True)
                 if st.button("🔐 Yönetici Girişi", use_container_width=True):
                     login_teacher(t_user, t_pass)
@@ -138,7 +139,7 @@ def main():
     # --- ÖĞRENCİ EKRANI (ANALİZ) ---
     elif st.session_state['auth_status'] == 'student':
         
-        # --- YENİ EKLENEN BÖLÜM: DETAYLI YÖNERGE ---
+        # --- DETAYLI YÖNERGE ---
         st.markdown(f"## 🧬 Merhaba, {st.session_state['current_user']}")
         
         with st.expander("ℹ️ UYGULAMA KULLANIM KILAVUZU (Lütfen Başlamadan Önce Okuyunuz)", expanded=True):
@@ -163,13 +164,11 @@ def main():
 
         st.markdown("---")
 
-        # Parmak İsimleri
         fingers = {
             "L1": "Sol Başparmak", "L2": "Sol İşaret", "L3": "Sol Orta", "L4": "Sol Yüzük", "L5": "Sol Serçe",
             "R1": "Sağ Başparmak", "R2": "Sağ İşaret", "R3": "Sağ Orta", "R4": "Sağ Yüzük", "R5": "Sağ Serçe"
         }
         
-        # Seçim Alanı
         col_sel1, col_sel2 = st.columns([1, 3])
         with col_sel1:
             st.markdown("### 👇 1. Adım: Seçim")
@@ -180,7 +179,6 @@ def main():
                 format_func=lambda x: f"{x} - {fingers[x]}"
             )
 
-        # Resim Yükleme ve Sonuç Alanı
         col_img, col_res = st.columns(2, gap="large")
         
         with col_img:
@@ -195,20 +193,16 @@ def main():
             if uploaded_file is not None:
                 if st.button("✨ BU PARMAĞI ANALİZ ET", use_container_width=True):
                     with st.status("Grok AI Görüntüyü İşliyor...", expanded=True) as status:
-                        st.write("🔍 Görüntü netliği kontrol ediliyor...")
-                        time.sleep(1)
+                        st.write("🔍 Görüntü netliği ve kontrastı işleniyor (OpenCV)...")
+                        time.sleep(0.5)
                         st.write("🧬 Desen taranıyor (Loop/Whorl/Arch)...")
                         
-                        # Grok Vision Analizi
                         image_bytes = uploaded_file.getvalue()
                         result = grok_service.analyze_fingerprint(image_bytes, selected_finger_code)
                         
-                        # Kaydet
                         st.session_state['results'][selected_finger_code] = result
-                        
                         status.update(label="✅ Analiz Başarılı!", state="complete", expanded=False)
 
-                    # Sonuç Gösterimi
                     if result.get("type") == "Error":
                         st.error(f"Hata: {result.get('note')}")
                     else:
@@ -226,15 +220,13 @@ def main():
 
         st.markdown("---")
         
-        # Tamamla Butonu
         st.markdown("### 🏁 Son Adım: Gönderim")
-        st.write("Tüm parmakları (L1'den R5'e kadar) tek tek analiz ettikten sonra aşağıdaki butona basınız.")
+        st.write("Tüm parmakları (L1'den R5'e kadar) analiz ettikten sonra aşağıdaki butona basınız.")
         
         if st.button("✅ TÜM ANALİZLERİ BİTİR VE ÖĞRETMENE GÖNDER", type="primary", use_container_width=True):
             if len(st.session_state['results']) > 0:
                 student_full_name = st.session_state['current_user']
                 
-                # İlerleme çubuğu
                 progress_text = "Veriler veritabanına işleniyor..."
                 my_bar = st.progress(0, text=progress_text)
 
@@ -248,7 +240,7 @@ def main():
                         confidence=data.get("confidence", "Low"),
                         dmit_insight=data.get("dmit_insight", "")
                     )
-                    time.sleep(0.1) # Simülasyon
+                    time.sleep(0.1)
                     my_bar.progress((percent_complete + 1) / len(st.session_state['results']), text=progress_text)
                 
                 my_bar.empty()
@@ -257,11 +249,12 @@ def main():
                 time.sleep(4)
                 logout()
             else:
-                st.error("⚠️ Henüz hiç parmak analizi yapmadınız! Lütfen yukarıdan en az bir parmak yükleyip analiz edin.")
+                st.error("⚠️ Henüz hiç parmak analizi yapmadınız!")
 
     # --- ÖĞRETMEN EKRANI ---
     elif st.session_state['auth_status'] == 'teacher':
         st.markdown("## 👨‍🏫 Yönetim ve Raporlama Merkezi")
+        st.caption(f"Yönetici: {st.session_state['current_user']}")
         
         col_t1, col_t2 = st.columns([1, 2])
         
@@ -279,8 +272,8 @@ def main():
             if selected_student:
                 st.info(f"Seçilen Öğrenci: **{selected_student}**")
                 
-                if st.button("🧬 NOBEL GENETİK RAPORU OLUŞTUR", type="primary"):
-                    with st.spinner("Yapay Zeka raporu yazıyor... Lütfen bekleyiniz..."):
+                if st.button("🧬 BALABAN GENETİK RAPORU OLUŞTUR", type="primary"):
+                    with st.spinner("Yapay Zeka (Grok Reasoning) raporu yazıyor... Bu işlem detaylı olduğu için 1-2 dakika sürebilir."):
                         finger_data = db_manager.get_student_data(selected_student)
                         if finger_data.empty:
                             st.error("Bu öğrenciye ait veri bulunamadı.")
