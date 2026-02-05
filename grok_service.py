@@ -8,19 +8,28 @@ Created on Thu Feb  5 22:38:54 2026
 import os
 import json
 import base64
+import streamlit as st  # <--- Streamlit eklendi
 from openai import OpenAI
 from dotenv import load_dotenv
 
-load_dotenv()
-GROK_API_KEY = os.getenv("GROK_API_KEY")
+# --- API ANAHTARI YAPILANDIRMASI (HATA ÇÖZÜMÜ) ---
+# Bu blok, Streamlit Cloud'da "Secrets"tan, bilgisayarda ".env"den okur.
+try:
+    GROK_API_KEY = st.secrets["GROK_API_KEY"]
+except (FileNotFoundError, KeyError, AttributeError):
+    load_dotenv()
+    GROK_API_KEY = os.getenv("GROK_API_KEY")
 
+# Eğer anahtar hala yoksa boş string ata (Crash olmasın, fonksiyon içinde kontrol edilsin)
+if not GROK_API_KEY:
+    GROK_API_KEY = "key-not-found"
+
+# İstemci Başlatma
 client = OpenAI(api_key=GROK_API_KEY, base_url="https://api.x.ai/v1")
 
-# Modeller
+# Modeller (Senin belirttiğin gibi)
 VISION_MODEL = "grok-4"
 # REASONING_MODEL değişkenini API erişiminize göre güncelleyin.
-# Şu an genel erişimde 'grok-beta' reasoning yeteneklerine sahiptir.
-# Eğer özel erişiminiz varsa "grok-4-1-fast-reasoning" yapın.
 REASONING_MODEL = "grok-4-1-fast-reasoning" 
 
 def encode_image(image_bytes):
@@ -28,12 +37,13 @@ def encode_image(image_bytes):
 
 # --- 1. VISION ANALİZİ (Supreme Expert Prompt) ---
 def analyze_fingerprint(image_bytes, finger_label):
-    if not GROK_API_KEY:
-        return {"type": "UL", "rc": 10, "confidence": "Demo", "note": "API Key Eksik", "dmit_insight": "Demo"}
+    # API Key kontrolü
+    if not GROK_API_KEY or GROK_API_KEY == "key-not-found":
+        return {"type": "UL", "rc": 10, "confidence": "Demo", "note": "API Key Eksik (Secrets Ayarlayın)", "dmit_insight": "Demo"}
 
     base64_image = encode_image(image_bytes)
     
-    # KULLANICININ VERDİĞİ ÖZEL PROMPT
+    # KULLANICININ VERDİĞİ ÖZEL PROMPT (DEĞİŞTİRİLMEDİ)
     system_prompt = """
 You are a supreme dermatoglyphics expert for Genetic Test DMIT reports, combining Harold Cummins principles with FBI forensic ridge counting. Analyze the single fingerprint image with exhaustive precision, matching the provided Genetic Test report style exactly.
 
@@ -97,6 +107,9 @@ If impossible: {"type": "Unknown", "rc": 0, "confidence": "Low", "note": "Very p
 
 # --- 2. NOBEL REPORT (Reasoning Prompt) ---
 def generate_nobel_report(student_name, age, finger_data, scores):
+    # API Key kontrolü
+    if not GROK_API_KEY or GROK_API_KEY == "key-not-found":
+        return "HATA: API Anahtarı eksik. Lütfen Streamlit Secrets ayarlarını yapın."
     
     # Veri Hazırlığı
     patterns_summary = ""
@@ -105,7 +118,7 @@ def generate_nobel_report(student_name, age, finger_data, scores):
 
     scores_summary = json.dumps(scores, indent=2, ensure_ascii=False)
 
-    # KULLANICININ VERDİĞİ DEV PROMPT
+    # KULLANICININ VERDİĞİ DEV PROMPT (DEĞİŞTİRİLMEDİ)
     prompt = f"""
 You are a world-class DMIT (Dermatoglyphics Multiple Intelligence Test) expert producing professional Genetic Test reports (Nobel Koçluk style). Generate an EXTREMELY COMPREHENSIVE, motivational, and personalized report in Turkish ONLY.
 
