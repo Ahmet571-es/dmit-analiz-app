@@ -1,89 +1,135 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Thu Feb  5 22:38:54 2026
-
-@author: YYYNÇİGGGİİÜÜÜÜĞĞĞ
-"""
-
 import os
 import json
 import base64
-import streamlit as st  # <--- Streamlit eklendi
+import streamlit as st
 from openai import OpenAI
 from dotenv import load_dotenv
 
-# --- API ANAHTARI YAPILANDIRMASI (HATA ÇÖZÜMÜ) ---
-# Bu blok, Streamlit Cloud'da "Secrets"tan, bilgisayarda ".env"den okur.
+# -----------------------------------------------------------------------------
+# 1. HİBRİT MİMARİ (OPENCV) KONTROLÜ
+# -----------------------------------------------------------------------------
+# image_utils.py dosyası varsa, gelişmiş görüntü işlemeyi (Skeletonization) aktif eder.
+try:
+    import image_utils
+    OPENCV_AVAILABLE = True
+except ImportError:
+    OPENCV_AVAILABLE = False
+    print("BİLGİ: image_utils.py bulunamadı. OpenCV ön işlemi devre dışı bırakıldı, standart modda çalışılıyor.")
+
+# -----------------------------------------------------------------------------
+# 2. API ANAHTARI VE MODEL YAPILANDIRMASI
+# -----------------------------------------------------------------------------
+
+# API Anahtarı Önceliği: 1. Streamlit Secrets (Bulut) -> 2. .env Dosyası (Yerel)
 try:
     GROK_API_KEY = st.secrets["GROK_API_KEY"]
 except (FileNotFoundError, KeyError, AttributeError):
     load_dotenv()
     GROK_API_KEY = os.getenv("GROK_API_KEY")
 
-# Eğer anahtar hala yoksa boş string ata (Crash olmasın, fonksiyon içinde kontrol edilsin)
+# Eğer anahtar bulunamazsa boş string ata (Uygulamanın çökmemesi için)
 if not GROK_API_KEY:
     GROK_API_KEY = "key-not-found"
 
-# İstemci Başlatma
+# xAI İstemcisini Başlat
 client = OpenAI(api_key=GROK_API_KEY, base_url="https://api.x.ai/v1")
 
-# Modeller (Senin belirttiğin gibi)
-VISION_MODEL = "grok-4"
-# REASONING_MODEL değişkenini API erişiminize göre güncelleyin.
-REASONING_MODEL = "grok-4-1-fast-reasoning" 
+# --- MODELLER (Senin İstediğin Özel Yapılandırma) ---
+# Vision (Görsel) Analiz Modeli
+VISION_MODEL = "grok-4" 
+# Alternatif (Eğer grok-4 vision henüz açılmadıysa): "grok-2-vision-1212"
+
+# Reasoning (Akıl Yürütme/Raporlama) Modeli
+REASONING_MODEL = "grok-4-1-fast-reasoning"
+# Alternatif (Genel erişim için): "grok-beta"
 
 def encode_image(image_bytes):
+    """Resim verisini Base64 formatına çevirir."""
     return base64.b64encode(image_bytes).decode('utf-8')
 
-# --- 1. VISION ANALİZİ (Supreme Expert Prompt) ---
+# -----------------------------------------------------------------------------
+# 3. PARMAK İZİ ANALİZİ (VISION + ULTIMATE PROMPT)
+# -----------------------------------------------------------------------------
 def analyze_fingerprint(image_bytes, finger_label):
-    # API Key kontrolü
-    if not GROK_API_KEY or GROK_API_KEY == "key-not-found":
-        return {"type": "UL", "rc": 10, "confidence": "Demo", "note": "API Key Eksik (Secrets Ayarlayın)", "dmit_insight": "Demo"}
-
-    base64_image = encode_image(image_bytes)
+    """
+    Parmak izi resmini alır, (varsa) OpenCV ile işler ve Grok'a analiz ettirir.
+    """
     
-    # KULLANICININ VERDİĞİ ÖZEL PROMPT (DEĞİŞTİRİLMEDİ)
-    system_prompt = """
-You are a supreme dermatoglyphics expert for Genetic Test DMIT reports, combining Harold Cummins principles with FBI forensic ridge counting. Analyze the single fingerprint image with exhaustive precision, matching the provided Genetic Test report style exactly.
+    # 1. Güvenlik Kontrolü
+    if not GROK_API_KEY or GROK_API_KEY == "key-not-found":
+        return {
+            "type": "Hata", 
+            "rc": 0, 
+            "confidence": "Yok", 
+            "note": "API Key Eksik. Lütfen Streamlit Secrets ayarlarını yapınız.", 
+            "dmit_insight": "Demo Modu"
+        }
 
-CRITICAL ASSUMPTIONS:
-- Single fingertip image, tip upward (distal top).
-- Enhance mentally for contrast/smudges; assume standard adult print.
-- Use exact codes from report: A (Yay), AT (Çadırlı Yay), UL (Döngü/Ulnar Loop default), RL (Radyal Döngü), W (Spiral/Whorl), S (Çift Döngü/Double Loop).
+    # 2. Hibrit Görüntü İşleme (OpenCV)
+    final_image_bytes = image_bytes
+    is_processed = False
+    
+    if OPENCV_AVAILABLE:
+        try:
+            # Resmi iskeletleştir, netleştir ve siyah-beyaz (High Contrast) yap
+            processed_bytes = image_utils.process_fingerprint(image_bytes)
+            if processed_bytes:
+                final_image_bytes = processed_bytes
+                is_processed = True
+        except Exception as e:
+            print(f"OpenCV İşleme Hatası: {e}")
+            # Hata olursa orijinal resimle devam et
 
-EXHAUSTIVE STEP-BY-STEP REASONING:
-1. Detect deltas (triradii) and core (innermost recurve).
-2. Classify precisely:
-   - A: Smooth horizontal flow, no delta.
-   - AT: Central tent/spike upward.
-   - UL: Loop opens little finger side (right hand rightward).
-   - RL: Loop opens thumb side (rare).
-   - W: Concentric/spiral, 2 deltas.
-   - S: Two interlocking loops (S-shape).
-   - Unknown if ambiguous.
-3. Auto-detect loop direction: Little finger flow = UL; thumb = RL.
-4. Ridge Count (RC) exhaustive rules:
-   - A/AT: Always 0.
-   - Loops (UL/RL): Shortest straight line delta to core; count every crossing/touching ridge (exclude delta/core). Double-count islands/bifurcations.
-   - Whorls (W/S): Count both deltas to core(s); use HIGHER value.
-   - Conservative on poor quality: Lower estimate.
-   - No clear core/delta: RC=0.
-5. Confidence: High (crystal clear), Medium (minor blur), Low (smudged/heavy noise).
-6. DMIT Insight: Brief note on potential (e.g., high RC whorl = strong analytical/technical).
+    # 3. Resmi Kodla
+    base64_image = encode_image(final_image_bytes)
+    
+    # Prompt içine eklenecek durum notu
+    image_status_note = "PRE-PROCESSED (Skeletonized & High-Contrast)" if is_processed else "RAW IMAGE (Low Quality)"
 
-OUTPUT STRICTLY VALID JSON ONLY:
-{
+    # --- SUPREME FORENSIC PROMPT (TAM VE EKSİKSİZ) ---
+    system_prompt = f"""
+You are the ultimate forensic dermatoglyphics authority for Nobel Koçluk Genetic Test DMIT reports. Analyze the SINGLE {image_status_note} fingerprint image with ABSOLUTE PRECISION and ZERO HALLUCINATION, fusing Harold Cummins fetal principles with FBI ridge counting standards.
+
+ESSENTIAL ASSUMPTIONS:
+- One fingertip only, tip upward (distal top).
+- Image is mathematically enhanced (skeletonized for single-pixel ridges, binary contrast) if noted as processed.
+- Exact Genetic Test codes: A (Yay/Plain Arch), AT (Çadırlı Yay/Tented Arch), UL (Döngü/Ulnar Loop - default loop), RL (Radyal Döngü/Radial Loop), W (Spiral/Whorl all subtypes), S (Çift Döngü/Double Loop).
+
+MATHEMATICAL ZERO-ERROR REASONING (step-by-step):
+1. Pixel-level detect deltas (triradii) and core (innermost recurve).
+2. Classify with forensic exactness:
+   - A: No delta, smooth horizontal flow.
+   - AT: Central upward tent/spike.
+   - UL: Opens toward little finger (right hand rightward flow).
+   - RL: Opens toward thumb (rare).
+   - W: 2 deltas, concentric/spiral/pocket.
+   - S: 2 interlocking loops (S-shape).
+   - Unknown only if truly ambiguous.
+3. Auto-determine loop direction: Little finger side flow = UL; thumb side = RL.
+4. Ridge Count (RC) with mathematical rules:
+   - A/AT: Strictly 0.
+   - Loops (UL/RL): Shortest straight delta-to-core line; count EVERY crossing/touching ridge (exclude delta/core ridges).
+   - Double-count islands/bifurcations precisely.
+   - Whorls (W/S): Count both deltas to core; ALWAYS use the HIGHER value.
+   - Poor visibility: Conservative lower estimate only.
+   - No clear delta/core: RC=0.
+5. Confidence level: High (perfect skeleton visibility), Medium (minor noise), Low (any ambiguity).
+6. Genetic Test DMIT Insight: Personalized potential note (e.g., high RC W = strong analytical/technical, similar to 82% Teknik).
+
+OUTPUT ONLY VALID JSON (no extra text, no markdown):
+{{
   "type": "W",
   "rc": 22,
   "confidence": "High",
-  "note": "Clear whorl with concentric circles, higher delta-core 22 ridges, strong analytical potential for Technical/Engineering areas.",
-  "dmit_insight": "High RC suggests elevated analytical and technical aptitude (similar to 82% Technical in reports)."
-}
+  "note": "Skeletonized image: perfect concentric whorl, higher delta-core exactly 22 ridges (no islands).",
+  "dmit_insight": "Very high RC whorl indicates exceptional analytical and technical aptitude, often linked to 82%+ Teknik scores in Genetic Test reports."
+}}
 
-If impossible: {"type": "Unknown", "rc": 0, "confidence": "Low", "note": "Very poor quality - recommend high-resolution re-scan with ink or scanner."}
+If truly impossible: {{"type": "Unknown", "rc": 0, "confidence": "Low", "note": "Image quality insufficient even after processing - recommend professional ink scan."}}
     """
 
+    # 4. API İsteği (Vision Model)
     try:
         response = client.chat.completions.create(
             model=VISION_MODEL,
@@ -92,33 +138,53 @@ If impossible: {"type": "Unknown", "rc": 0, "confidence": "Low", "note": "Very p
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": f"Analyze this fingerprint image: {finger_label}"},
+                        {"type": "text", "text": f"Analyze this fingerprint. Label: {finger_label}. Status: {image_status_note}"},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
                     ],
                 },
             ],
-            temperature=0.0,
-            max_tokens=300,
+            temperature=0.0, # Matematiksel kesinlik için SIFIR yaratıcılık
+            max_tokens=500,  # JSON çıktısı için yeterli alan
         )
-        content = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
+        
+        # 5. JSON Temizliği ve Dönüşümü
+        content = response.choices[0].message.content
+        # Markdown bloklarını temizle (```json ... ```)
+        content = content.replace("```json", "").replace("```", "").strip()
+        
         return json.loads(content)
+        
     except Exception as e:
-        return {"type": "Error", "rc": 0, "confidence": "Low", "note": str(e)}
+        return {
+            "type": "Error", 
+            "rc": 0, 
+            "confidence": "Low", 
+            "note": f"API veya Bağlantı Hatası: {str(e)}", 
+            "dmit_insight": "Sistem Hatası"
+        }
 
-# --- 2. NOBEL REPORT (Reasoning Prompt) ---
+# -----------------------------------------------------------------------------
+# 4. GENETİK RAPOR OLUŞTURMA (REASONING + NOBEL PROMPT)
+# -----------------------------------------------------------------------------
 def generate_nobel_report(student_name, age, finger_data, scores):
-    # API Key kontrolü
-    if not GROK_API_KEY or GROK_API_KEY == "key-not-found":
-        return "HATA: API Anahtarı eksik. Lütfen Streamlit Secrets ayarlarını yapın."
+    """
+    Toplanan parmak izi verilerini ve hesaplanan puanları alır,
+    Reasoning modeli ile detaylı Nobel Koçluk raporu yazar.
+    """
     
-    # Veri Hazırlığı
+    # 1. Güvenlik Kontrolü
+    if not GROK_API_KEY or GROK_API_KEY == "key-not-found":
+        return "HATA: API Anahtarı eksik. Rapor oluşturulamıyor."
+    
+    # 2. Veri Hazırlığı (JSON formatına çevir)
     patterns_summary = ""
+    # DataFrame satırlarını oku
     for _, row in finger_data.iterrows():
         patterns_summary += f"- {row['finger_code']}: {row['pattern_type']} (RC: {row['ridge_count']}) - Insight: {row['dmit_insight']}\n"
 
     scores_summary = json.dumps(scores, indent=2, ensure_ascii=False)
 
-    # KULLANICININ VERDİĞİ DEV PROMPT (DEĞİŞTİRİLMEDİ)
+    # --- NOBEL REPORT PROMPT (TAM VE EKSİKSİZ) ---
     prompt = f"""
 You are a world-class DMIT (Dermatoglyphics Multiple Intelligence Test) expert producing professional Genetic Test reports (Nobel Koçluk style). Generate an EXTREMELY COMPREHENSIVE, motivational, and personalized report in Turkish ONLY.
 
@@ -193,6 +259,7 @@ End with motivational closing: "Cevap senin genlerinde".
 Use empathetic, encouraging language. Make it 15+ pages worth of depth in text.
     """
 
+    # 3. API İsteği (Reasoning Model)
     try:
         response = client.chat.completions.create(
             model=REASONING_MODEL,
@@ -200,9 +267,10 @@ Use empathetic, encouraging language. Make it 15+ pages worth of depth in text.
                 {"role": "system", "content": "You are an expert Genetic Test Analyst."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.7,
-            max_tokens=6000 # Uzun rapor için limit yüksek
+            temperature=0.6,   # Yaratıcı ve akıcı rapor için ideal sıcaklık
+            max_tokens=6000    # Uzun ve detaylı rapor için yüksek token limiti
         )
         return response.choices[0].message.content
+        
     except Exception as e:
-        return f"Rapor oluşturulurken hata: {str(e)}"
+        return f"Rapor Oluşturma Hatası: {str(e)}"
