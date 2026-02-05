@@ -5,7 +5,7 @@ import grok_service
 import time
 
 # -----------------------------------------------------------------------------
-# 1. SAYFA VE TASARIM AYARLARI (CSS BÜYÜSÜ BURADA)
+# 1. SAYFA VE TASARIM AYARLARI
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="DMIT Genetik Analiz",
@@ -17,84 +17,39 @@ st.set_page_config(
 # Özel CSS Tasarımı
 st.markdown("""
 <style>
-    /* 1. Genel Sayfa Arka Planı */
     .stApp {
-        background: linear-gradient(to bottom right, #f0f2f6, #e2eafc);
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(to bottom right, #f8fafc, #eef2ff);
+        font-family: 'Segoe UI', sans-serif;
+    }
+    h1 { color: #1e3a8a; font-weight: 800; }
+    h2, h3 { color: #334155; }
+    
+    /* Yönerge Kutusu Tasarımı */
+    .instruction-box {
+        background-color: #fffbeb;
+        border-left: 5px solid #f59e0b;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
 
-    /* 2. Başlıklar */
-    h1 {
-        color: #1e3a8a; /* Koyu Lacivert */
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-        font-weight: 700;
-    }
-    h2, h3 {
-        color: #2c3e50;
-    }
-
-    /* 3. Özel Buton Tasarımı (Gradyan ve Yuvarlak) */
+    /* Butonlar */
     .stButton>button {
-        background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
-        color: white;
-        border: none;
-        border-radius: 12px;
-        padding: 0.5rem 1rem;
-        font-weight: bold;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border-radius: 8px;
+        font-weight: 600;
+        transition: transform 0.2s;
     }
     .stButton>button:hover {
-        background: linear-gradient(90deg, #2563eb 0%, #1d4ed8 100%);
-        transform: translateY(-2px);
-        box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
-        border-color: transparent;
-        color: white;
+        transform: scale(1.02);
     }
     
-    /* 4. Giriş Kutuları (Input Fields) */
-    .stTextInput>div>div>input {
-        border-radius: 10px;
-        border: 1px solid #cbd5e1;
-        padding: 10px;
-    }
-    .stTextInput>div>div>input:focus {
-        border-color: #3b82f6;
-        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-    }
-
-    /* 5. Kart Görünümü İçin Çerçeveler */
+    /* Kartlar */
     div[data-testid="stExpander"] {
-        background-color: white;
+        border: none;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
-    
-    /* 6. Sidebar (Yan Menü) */
-    section[data-testid="stSidebar"] {
-        background-color: #ffffff;
-        border-right: 1px solid #e2e8f0;
-    }
-    
-    /* Sekme (Tab) Tasarımı */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        white-space: pre-wrap;
-        background-color: white;
-        border-radius: 10px 10px 0 0;
-        gap: 1px;
-        padding-top: 10px;
-        padding-bottom: 10px;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #eff6ff;
-        color: #1e40af;
-        border-bottom: 2px solid #3b82f6;
-    }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -107,6 +62,8 @@ if 'current_user' not in st.session_state:
     st.session_state['current_user'] = None
 if 'analysis_data' not in st.session_state:
     st.session_state['analysis_data'] = {}
+if 'results' not in st.session_state: # Results session'ı başlatıyoruz
+    st.session_state['results'] = {}
 
 db_manager.init_db()
 
@@ -141,19 +98,18 @@ def logout():
 def main():
     # --- YAN MENÜ ---
     with st.sidebar:
-        st.image("https://cdn-icons-png.flaticon.com/512/2920/2920349.png", width=100) # DNA ikonu
+        st.image("https://cdn-icons-png.flaticon.com/512/2920/2920349.png", width=80)
         st.title("DMIT Sistemi")
         st.markdown("Genetik Potansiyel Analizi")
         st.markdown("---")
         
         if st.session_state['auth_status']:
             st.success(f"👤 Aktif: **{st.session_state['current_user']}**")
-            if st.button("🚪 Çıkış Yap"):
+            if st.button("🚪 Çıkış Yap", use_container_width=True):
                 logout()
         
         st.markdown("---")
         st.caption("🔒 Güvenli Veri Tabanı")
-        st.caption("© 2026 Nobel Koçluk")
 
     # --- GİRİŞ EKRANI ---
     if st.session_state['auth_status'] is None:
@@ -161,108 +117,128 @@ def main():
         with col2:
             st.markdown("<br><br>", unsafe_allow_html=True)
             st.markdown("<h1 style='text-align: center;'>Genetik Analiz Platformu</h1>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align: center; color: gray;'>Lütfen giriş yapmak için rolünüzü seçiniz.</p>", unsafe_allow_html=True)
-            st.markdown("---")
+            st.info("👋 Hoş geldiniz. Lütfen analize başlamak için giriş yapınız.")
             
             tab_student, tab_teacher = st.tabs(["🎓 ÖĞRENCİ GİRİŞİ", "👨‍🏫 YÖNETİCİ GİRİŞİ"])
             
             with tab_student:
-                st.markdown("### 👋 Hoş Geldin!")
                 s_name = st.text_input("Adınız", placeholder="Örn: Ahmet")
                 s_surname = st.text_input("Soyadınız", placeholder="Örn: Yılmaz")
                 st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("🚀 Analize Başla", use_container_width=True):
+                if st.button("🚀 Giriş Yap ve Başla", type="primary", use_container_width=True):
                     login_student(s_name, s_surname)
             
             with tab_teacher:
-                st.markdown("### 🔒 Yetkili Girişi")
                 t_user = st.text_input("Kullanıcı Adı", placeholder="admin")
                 t_pass = st.text_input("Şifre", type="password", placeholder="****")
                 st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("🔐 Sisteme Gir", use_container_width=True):
+                if st.button("🔐 Yönetici Girişi", use_container_width=True):
                     login_teacher(t_user, t_pass)
 
-    # --- ÖĞRENCİ EKRANI ---
+    # --- ÖĞRENCİ EKRANI (ANALİZ) ---
     elif st.session_state['auth_status'] == 'student':
-        st.markdown(f"## 🧬 Merhaba, {st.session_state['current_user']}")
-        st.info("💡 **Bilgi:** Lütfen parmaklarınızı sırasıyla seçip, net bir şekilde fotoğrafını yükleyiniz.")
         
-        # Parmak Seçimi ve İlerleme
+        # --- YENİ EKLENEN BÖLÜM: DETAYLI YÖNERGE ---
+        st.markdown(f"## 🧬 Merhaba, {st.session_state['current_user']}")
+        
+        with st.expander("ℹ️ UYGULAMA KULLANIM KILAVUZU (Lütfen Başlamadan Önce Okuyunuz)", expanded=True):
+            st.markdown("""
+            <div class="instruction-box">
+                <h4>📸 Fotoğraf Çekim Sırası ve Kuralları</h4>
+                <p>Doğru bir analiz raporu alabilmek için lütfen aşağıdaki adımları sırasıyla uygulayınız:</p>
+                <ol>
+                    <li><strong>Hazırlık:</strong> Parmak uçlarınızın temiz ve kuru olduğundan emin olunuz.</li>
+                    <li><strong>Zemin ve Işık:</strong> Parmağınızı <b>beyaz bir kağıt</b> üzerine koyunuz. Işık parmağınızı net bir şekilde aydınlatmalı, gölge düşmemelidir.</li>
+                    <li><strong>Odaklama (Çok Önemli):</strong> Telefon kamerasını parmağınıza yaklaştırın (Makro çekim). Parmak izi çizgileri (desenler) <b>tel tel sayılabilir netlikte</b> olmalıdır. Bulanık fotoğraflar analiz edilemez.</li>
+                    <li><strong>Sıralama:</strong> Sistem sizi yönlendirecektir ancak genel sıra şöyledir:
+                        <ul>
+                            <li><b>Sol El:</b> Başparmak (L1) → İşaret (L2) → Orta (L3) → Yüzük (L4) → Serçe (L5)</li>
+                            <li><b>Sağ El:</b> Başparmak (R1) → İşaret (R2) → Orta (R3) → Yüzük (R4) → Serçe (R5)</li>
+                        </ul>
+                    </li>
+                    <li><strong>Yükleme:</strong> Fotoğrafı çektikten sonra ilgili kutucuğa yükleyip "Analiz Et" butonuna basınız.</li>
+                </ol>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("---")
+
+        # Parmak İsimleri
         fingers = {
             "L1": "Sol Başparmak", "L2": "Sol İşaret", "L3": "Sol Orta", "L4": "Sol Yüzük", "L5": "Sol Serçe",
             "R1": "Sağ Başparmak", "R2": "Sağ İşaret", "R3": "Sağ Orta", "R4": "Sağ Yüzük", "R5": "Sağ Serçe"
         }
         
-        # Güzel bir kutu içinde seçim
-        with st.container():
-            col_sel1, col_sel2 = st.columns([1, 3])
-            with col_sel1:
-                st.write("### 👇 Seçim Yap")
-            with col_sel2:
-                selected_finger_code = st.selectbox(
-                    "Analiz edilecek parmağı seçiniz:", 
-                    list(fingers.keys()), 
-                    format_func=lambda x: f"{x} - {fingers[x]}"
-                )
+        # Seçim Alanı
+        col_sel1, col_sel2 = st.columns([1, 3])
+        with col_sel1:
+            st.markdown("### 👇 1. Adım: Seçim")
+        with col_sel2:
+            selected_finger_code = st.selectbox(
+                "Şu an hangi parmağı yükleyeceksiniz?", 
+                list(fingers.keys()), 
+                format_func=lambda x: f"{x} - {fingers[x]}"
+            )
 
-        st.markdown("---")
-
-        # İki Kolonlu Tasarım
+        # Resim Yükleme ve Sonuç Alanı
         col_img, col_res = st.columns(2, gap="large")
         
         with col_img:
-            st.markdown("#### 1. 📸 Fotoğraf Yükle")
-            uploaded_file = st.file_uploader(f"{fingers[selected_finger_code]} Resmi", type=['png', 'jpg', 'jpeg'])
+            st.markdown(f"#### 2. Adım: {fingers[selected_finger_code]} Resmi")
+            uploaded_file = st.file_uploader("Net bir fotoğraf yükleyiniz", type=['png', 'jpg', 'jpeg'], key=selected_finger_code)
             if uploaded_file:
-                st.image(uploaded_file, caption="Yüklenen Resim", use_container_width=True)
+                st.image(uploaded_file, caption="Önizleme", width=300)
             
         with col_res:
-            st.markdown("#### 2. 🧠 Yapay Zeka Analizi")
+            st.markdown("#### 3. Adım: Yapay Zeka Analizi")
             
             if uploaded_file is not None:
-                if st.button("✨ ANALİZİ BAŞLAT", use_container_width=True):
+                if st.button("✨ BU PARMAĞI ANALİZ ET", use_container_width=True):
                     with st.status("Grok AI Görüntüyü İşliyor...", expanded=True) as status:
-                        st.write("🔍 Görüntü netleştiriliyor...")
+                        st.write("🔍 Görüntü netliği kontrol ediliyor...")
                         time.sleep(1)
                         st.write("🧬 Desen taranıyor (Loop/Whorl/Arch)...")
-                        time.sleep(1)
                         
                         # Grok Vision Analizi
                         image_bytes = uploaded_file.getvalue()
                         result = grok_service.analyze_fingerprint(image_bytes, selected_finger_code)
                         
                         # Kaydet
-                        if 'results' not in st.session_state:
-                            st.session_state['results'] = {}
                         st.session_state['results'][selected_finger_code] = result
                         
-                        status.update(label="✅ Analiz Tamamlandı!", state="complete", expanded=False)
+                        status.update(label="✅ Analiz Başarılı!", state="complete", expanded=False)
 
-                    # Sonuç Gösterimi (Kart Stilinde)
+                    # Sonuç Gösterimi
                     if result.get("type") == "Error":
                         st.error(f"Hata: {result.get('note')}")
                     else:
-                        st.success("Tespiti Başarılı!")
+                        st.success("Tespit Edildi!")
                         st.markdown(f"""
-                        <div style="background-color: #f0fdf4; padding: 20px; border-radius: 10px; border: 1px solid #bbf7d0;">
+                        <div style="background-color: #f0fdf4; padding: 15px; border-radius: 10px; border: 1px solid #bbf7d0;">
                             <h3 style="color: #166534; margin:0;">Sonuç: {result.get('type')}</h3>
                             <p><strong>Ridge Count (RC):</strong> {result.get('rc')}</p>
-                            <p><strong>Güven Skoru:</strong> {result.get('confidence')}</p>
-                            <hr>
-                            <p style="font-style: italic;">"{result.get('dmit_insight')}"</p>
+                            <p><strong>Güven:</strong> {result.get('confidence')}</p>
+                            <p style="font-size: 0.9em;"><em>"{result.get('dmit_insight')}"</em></p>
                         </div>
                         """, unsafe_allow_html=True)
             else:
-                st.warning("👈 Analiz için lütfen önce sol taraftan resim yükleyin.")
+                st.info("👈 Lütfen önce sol taraftan fotoğraf yükleyiniz.")
 
         st.markdown("---")
         
-        # Tamamla Butonu (Devasa ve Dikkat Çekici)
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("✅ TÜM İŞLEMLERİ BİTİR VE GÖNDER", type="primary", use_container_width=True):
-            if 'results' in st.session_state and len(st.session_state['results']) > 0:
+        # Tamamla Butonu
+        st.markdown("### 🏁 Son Adım: Gönderim")
+        st.write("Tüm parmakları (L1'den R5'e kadar) tek tek analiz ettikten sonra aşağıdaki butona basınız.")
+        
+        if st.button("✅ TÜM ANALİZLERİ BİTİR VE ÖĞRETMENE GÖNDER", type="primary", use_container_width=True):
+            if len(st.session_state['results']) > 0:
                 student_full_name = st.session_state['current_user']
-                for f_code, data in st.session_state['results'].items():
+                
+                # İlerleme çubuğu
+                progress_text = "Veriler veritabanına işleniyor..."
+                my_bar = st.progress(0, text=progress_text)
+
+                for percent_complete, (f_code, data) in enumerate(st.session_state['results'].items()):
                     db_manager.add_fingerprint_record(
                         student_name=student_full_name,
                         finger_code=f_code,
@@ -272,12 +248,16 @@ def main():
                         confidence=data.get("confidence", "Low"),
                         dmit_insight=data.get("dmit_insight", "")
                     )
+                    time.sleep(0.1) # Simülasyon
+                    my_bar.progress((percent_complete + 1) / len(st.session_state['results']), text=progress_text)
+                
+                my_bar.empty()
                 st.balloons()
-                st.success("Veriler başarıyla merkeze iletildi! Yönlendiriliyorsunuz...")
-                time.sleep(3)
+                st.success("🎉 Tebrikler! Verileriniz başarıyla kaydedildi. Öğretmeniniz raporu oluşturabilir.")
+                time.sleep(4)
                 logout()
             else:
-                st.error("Henüz hiç parmak analizi yapmadınız!")
+                st.error("⚠️ Henüz hiç parmak analizi yapmadınız! Lütfen yukarıdan en az bir parmak yükleyip analiz edin.")
 
     # --- ÖĞRETMEN EKRANI ---
     elif st.session_state['auth_status'] == 'teacher':
@@ -290,19 +270,20 @@ def main():
             students = db_manager.get_all_students()
             if not students:
                 st.info("Sistemde kayıtlı öğrenci yok.")
+                selected_student = None
             else:
-                selected_student = st.radio("Raporlanacak Öğrenci:", students)
+                selected_student = st.radio("Raporlanacak Öğrenciyi Seç:", students)
 
         with col_t2:
             st.markdown("### 📝 Rapor İşlemleri")
-            if students and selected_student:
-                st.write(f"Seçilen: **{selected_student}**")
+            if selected_student:
+                st.info(f"Seçilen Öğrenci: **{selected_student}**")
                 
                 if st.button("🧬 NOBEL GENETİK RAPORU OLUŞTUR", type="primary"):
                     with st.spinner("Yapay Zeka raporu yazıyor... Lütfen bekleyiniz..."):
                         finger_data = db_manager.get_student_data(selected_student)
                         if finger_data.empty:
-                            st.error("Veri bulunamadı.")
+                            st.error("Bu öğrenciye ait veri bulunamadı.")
                         else:
                             scores = db_manager.calculate_dmit_scores(finger_data)
                             report_text = grok_service.generate_nobel_report(selected_student, 12, finger_data, scores)
