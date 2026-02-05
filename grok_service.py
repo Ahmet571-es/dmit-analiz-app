@@ -89,7 +89,7 @@ def analyze_fingerprint(image_bytes, finger_label):
 
     # --- SUPREME FORENSIC PROMPT (TAM VE EKSİKSİZ) ---
     system_prompt = f"""
-You are the ultimate forensic dermatoglyphics authority for Nobel Koçluk Genetic Test DMIT reports. Analyze the SINGLE {image_status_note} fingerprint image with ABSOLUTE PRECISION and ZERO HALLUCINATION, fusing Harold Cummins fetal principles with FBI ridge counting standards.
+You are the ultimate forensic dermatoglyphics authority for Balaban Koçluk Genetic Test DMIT reports. Analyze the SINGLE {image_status_note} fingerprint image with ABSOLUTE PRECISION and ZERO HALLUCINATION, fusing Harold Cummins fetal principles with FBI ridge counting standards.
 
 ESSENTIAL ASSUMPTIONS:
 - One fingertip only, tip upward (distal top).
@@ -164,12 +164,12 @@ If truly impossible: {{"type": "Unknown", "rc": 0, "confidence": "Low", "note": 
         }
 
 # -----------------------------------------------------------------------------
-# 4. GENETİK RAPOR OLUŞTURMA (REASONING + NOBEL PROMPT)
+# 4. GENETİK RAPOR OLUŞTURMA (REASONING + BALABAN PROMPT)
 # -----------------------------------------------------------------------------
 def generate_nobel_report(student_name, age, finger_data, scores):
     """
     Toplanan parmak izi verilerini ve hesaplanan puanları alır,
-    Reasoning modeli ile detaylı Nobel Koçluk raporu yazar.
+    Reasoning modeli ile detaylı BALABAN Koçluk raporu yazar.
     """
     
     # 1. Güvenlik Kontrolü
@@ -184,9 +184,9 @@ def generate_nobel_report(student_name, age, finger_data, scores):
 
     scores_summary = json.dumps(scores, indent=2, ensure_ascii=False)
 
-    # --- NOBEL REPORT PROMPT (TAM VE EKSİKSİZ) ---
+    # --- BALABAN REPORT PROMPT (TAM VE EKSİKSİZ) ---
     prompt = f"""
-You are a world-class DMIT (Dermatoglyphics Multiple Intelligence Test) expert producing professional Genetic Test reports (Nobel Koçluk style). Generate an EXTREMELY COMPREHENSIVE, motivational, and personalized report in Turkish ONLY.
+You are a world-class DMIT (Dermatoglyphics Multiple Intelligence Test) expert producing professional Genetic Test reports (BALABAN Koçluk style). Generate an EXTREMELY COMPREHENSIVE, motivational, and personalized report in Turkish ONLY.
 
 Use the provided data:
 - Student name: {student_name}, Age: {age}
@@ -274,3 +274,4 @@ Use empathetic, encouraging language. Make it 15+ pages worth of depth in text.
         
     except Exception as e:
         return f"Rapor Oluşturma Hatası: {str(e)}"
+
