@@ -79,7 +79,7 @@ def login_student(name, surname):
         st.warning("⚠️ Lütfen Ad ve Soyad alanlarını doldurunuz.")
 
 def login_teacher(username, password):
-    # --- GÜNCELLENEN GİRİŞ BİLGİLERİ ---
+    # --- GÜNCELLENEN GİRİŞ BİLGİLERİ (BALABAN KOÇLUK) ---
     if username == "Balaban Koçluk" and password == "Balaban_İstanbul_Gümüşhane":
         st.session_state['auth_status'] = 'teacher'
         st.session_state['current_user'] = "Yönetici (Balaban Koçluk)"
@@ -272,6 +272,7 @@ def main():
             if selected_student:
                 st.info(f"Seçilen Öğrenci: **{selected_student}**")
                 
+                # --- BUTON İSMİ GÜNCELLENDİ ---
                 if st.button("🧬 BALABAN GENETİK RAPORU OLUŞTUR", type="primary"):
                     with st.spinner("Yapay Zeka (Grok Reasoning) raporu yazıyor... Bu işlem detaylı olduğu için 1-2 dakika sürebilir."):
                         finger_data = db_manager.get_student_data(selected_student)
@@ -292,4 +293,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
