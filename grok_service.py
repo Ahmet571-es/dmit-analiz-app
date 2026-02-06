@@ -747,7 +747,11 @@ Few-Shot 80 - Sonuç varyasyon (Ayşegül biçer.pdf):
 Çevre faktörü vurgu + motive kapanış + "Cevap senin genlerinde" + fetal genel yorum.
 
 Strictly follow 13 sections with fetal/ridge/personal/practical elements.
-Use empathetic, encouraging language. Report depth 20 pages equivalent.
+    Use empathetic, encouraging language. Report depth 20 pages equivalent.
+
+    IMPORTANT: Sign the report at the end as:
+    **Analist: Balaban Koçluk Baş Genetik Analisti**
+
 """
 
     try:
@@ -763,3 +767,4 @@ Use empathetic, encouraging language. Report depth 20 pages equivalent.
         return response.choices[0].message.content
     except Exception as e:
         return f"Rapor Oluşturma Hatası: {str(e)}"
+
