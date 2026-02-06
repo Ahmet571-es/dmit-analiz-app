@@ -50,6 +50,24 @@ st.markdown("""
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         border-radius: 10px;
     }
+    
+    /* Radio Butonu Yatay ve Şık Yapma */
+    div.row-widget.stRadio > div {
+        flex-direction: row;
+        align-items: stretch;
+    }
+    div.row-widget.stRadio > div[role="radiogroup"] > label {
+        background-color: #ffffff;
+        padding: 10px 20px;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        margin-right: 10px;
+        transition: all 0.3s;
+    }
+    div.row-widget.stRadio > div[role="radiogroup"] > label:hover {
+        background-color: #eff6ff;
+        border-color: #3b82f6;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -148,16 +166,9 @@ def main():
                 <h4>📸 Fotoğraf Çekim Sırası ve Kuralları</h4>
                 <p>Doğru bir analiz raporu alabilmek için lütfen aşağıdaki adımları sırasıyla uygulayınız:</p>
                 <ol>
-                    <li><strong>Hazırlık:</strong> Parmak uçlarınızın temiz ve kuru olduğundan emin olunuz.</li>
-                    <li><strong>Zemin ve Işık:</strong> Parmağınızı <b>beyaz bir kağıt</b> üzerine koyunuz. Işık parmağınızı net bir şekilde aydınlatmalı, gölge düşmemelidir.</li>
-                    <li><strong>Odaklama (Çok Önemli):</strong> Telefon kamerasını parmağınıza yaklaştırın (Makro çekim). Parmak izi çizgileri (desenler) <b>tel tel sayılabilir netlikte</b> olmalıdır. Bulanık fotoğraflar analiz edilemez.</li>
-                    <li><strong>Sıralama:</strong> Sistem sizi yönlendirecektir ancak genel sıra şöyledir:
-                        <ul>
-                            <li><b>Sol El:</b> Başparmak (L1) → İşaret (L2) → Orta (L3) → Yüzük (L4) → Serçe (L5)</li>
-                            <li><b>Sağ El:</b> Başparmak (R1) → İşaret (R2) → Orta (R3) → Yüzük (R4) → Serçe (R5)</li>
-                        </ul>
-                    </li>
-                    <li><strong>Yükleme:</strong> Fotoğrafı çektikten sonra ilgili kutucuğa yükleyip "Analiz Et" butonuna basınız.</li>
+                    <li><strong>Seçim:</strong> Kamera ile anlık çekim yapabilir veya galeriden fotoğraf yükleyebilirsiniz.</li>
+                    <li><strong>Odaklama (Çok Önemli):</strong> Telefon kamerasını parmağınıza yaklaştırın (Makro çekim). Parmak izi çizgileri net olmalıdır.</li>
+                    <li><strong>Sıralama:</strong> Lütfen parmak sırasına riayet ediniz (L1 -> R5).</li>
                 </ol>
             </div>
             """, unsafe_allow_html=True)
@@ -169,12 +180,13 @@ def main():
             "R1": "Sağ Başparmak", "R2": "Sağ İşaret", "R3": "Sağ Orta", "R4": "Sağ Yüzük", "R5": "Sağ Serçe"
         }
         
+        # 1. PARMAK SEÇİMİ
         col_sel1, col_sel2 = st.columns([1, 3])
         with col_sel1:
-            st.markdown("### 👇 1. Adım: Seçim")
+            st.markdown("### 👇 1. Adım: Parmak")
         with col_sel2:
             selected_finger_code = st.selectbox(
-                "Şu an hangi parmağı yükleyeceksiniz?", 
+                "Analiz edilecek parmağı seçiniz:", 
                 list(fingers.keys()), 
                 format_func=lambda x: f"{x} - {fingers[x]}"
             )
@@ -182,11 +194,28 @@ def main():
         col_img, col_res = st.columns(2, gap="large")
         
         with col_img:
-            st.markdown(f"#### 2. Adım: {fingers[selected_finger_code]} Resmi")
-            uploaded_file = st.file_uploader("Net bir fotoğraf yükleyiniz", type=['png', 'jpg', 'jpeg'], key=selected_finger_code)
-            if uploaded_file:
-                st.image(uploaded_file, caption="Önizleme", width=300)
+            st.markdown(f"#### 2. Adım: Görüntü Kaynağı")
             
+            # --- YENİ EKLENEN KISIM: KAMERA / DOSYA SEÇİMİ ---
+            input_method = st.radio(
+                "Yükleme Yöntemi Seçiniz:",
+                ("📁 Galeriden Yükle", "📸 Kamera ile Çek"),
+                horizontal=True
+            )
+            
+            uploaded_file = None
+            
+            if input_method == "📁 Galeriden Yükle":
+                uploaded_file = st.file_uploader(f"{fingers[selected_finger_code]} Resmi Seç", type=['png', 'jpg', 'jpeg'], key=f"uploader_{selected_finger_code}")
+                if uploaded_file:
+                    st.image(uploaded_file, caption="Seçilen Resim", width=300)
+            else:
+                # Kamera Modu
+                camera_photo = st.camera_input(f"{fingers[selected_finger_code]} Çek", key=f"cam_{selected_finger_code}")
+                if camera_photo:
+                    uploaded_file = camera_photo # Kamera verisini uploaded_file değişkenine ata
+                    st.success("Fotoğraf Çekildi!")
+
         with col_res:
             st.markdown("#### 3. Adım: Yapay Zeka Analizi")
             
@@ -216,7 +245,7 @@ def main():
                         </div>
                         """, unsafe_allow_html=True)
             else:
-                st.info("👈 Lütfen önce sol taraftan fotoğraf yükleyiniz.")
+                st.info("👈 Lütfen önce sol taraftan fotoğraf yükleyiniz veya çekiniz.")
 
         st.markdown("---")
         
@@ -272,7 +301,6 @@ def main():
             if selected_student:
                 st.info(f"Seçilen Öğrenci: **{selected_student}**")
                 
-                # --- BUTON İSMİ GÜNCELLENDİ ---
                 if st.button("🧬 BALABAN GENETİK RAPORU OLUŞTUR", type="primary"):
                     with st.spinner("Yapay Zeka (Grok Reasoning) raporu yazıyor... Bu işlem detaylı olduğu için 1-2 dakika sürebilir."):
                         finger_data = db_manager.get_student_data(selected_student)
