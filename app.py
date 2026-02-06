@@ -24,15 +24,27 @@ st.markdown("""
     h1 { color: #1e3a8a; font-weight: 800; }
     h2, h3 { color: #334155; }
     
-    /* Yönerge Kutusu Tasarımı */
+    /* Yönerge Kutusu */
     .instruction-box {
         background-color: #fffbeb;
         border-left: 5px solid #f59e0b;
         padding: 15px;
         border-radius: 5px;
         margin-bottom: 20px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        font-size: 0.95em;
     }
+
+    /* Durum Kartları */
+    .status-card {
+        padding: 10px;
+        border-radius: 8px;
+        text-align: center;
+        font-weight: bold;
+        margin-bottom: 5px;
+        font-size: 0.85em;
+    }
+    .status-pending { background-color: #e2e8f0; color: #64748b; border: 1px dashed #cbd5e1; }
+    .status-done { background-color: #dcfce7; color: #166534; border: 1px solid #86efac; }
 
     /* Butonlar */
     .stButton>button {
@@ -44,42 +56,28 @@ st.markdown("""
         transform: scale(1.02);
     }
     
-    /* Kartlar */
-    div[data-testid="stExpander"] {
-        border: none;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        border-radius: 10px;
-    }
-    
-    /* Radio Butonu Yatay ve Şık Yapma */
+    /* Radio Butonu Özelleştirme */
     div.row-widget.stRadio > div {
         flex-direction: row;
-        align-items: stretch;
-    }
-    div.row-widget.stRadio > div[role="radiogroup"] > label {
-        background-color: #ffffff;
-        padding: 10px 20px;
-        border-radius: 10px;
-        border: 1px solid #e2e8f0;
-        margin-right: 10px;
-        transition: all 0.3s;
-    }
-    div.row-widget.stRadio > div[role="radiogroup"] > label:hover {
-        background-color: #eff6ff;
-        border-color: #3b82f6;
+        gap: 20px;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 2. SESSION STATE
+# 2. SESSION STATE (HAFIZA)
 # -----------------------------------------------------------------------------
 if 'auth_status' not in st.session_state:
     st.session_state['auth_status'] = None
 if 'current_user' not in st.session_state:
     st.session_state['current_user'] = None
-if 'analysis_data' not in st.session_state:
-    st.session_state['analysis_data'] = {}
+
+# --- ÖNEMLİ: Geçici Resim Klasörü ---
+# Kullanıcı resimleri yükledikçe buraya dolacak. Analiz henüz yapılmayacak.
+if 'finger_folder' not in st.session_state:
+    st.session_state['finger_folder'] = {}  # Örn: {'L1': b'resim_data', 'R1': b'resim_data'}
+
+# Sonuçların tutulduğu yer
 if 'results' not in st.session_state:
     st.session_state['results'] = {}
 
@@ -97,7 +95,6 @@ def login_student(name, surname):
         st.warning("⚠️ Lütfen Ad ve Soyad alanlarını doldurunuz.")
 
 def login_teacher(username, password):
-    # --- GÜNCELLENEN GİRİŞ BİLGİLERİ (BALABAN KOÇLUK) ---
     if username == "Balaban Koçluk" and password == "Balaban_İstanbul_Gümüşhane":
         st.session_state['auth_status'] = 'teacher'
         st.session_state['current_user'] = "Yönetici (Balaban Koçluk)"
@@ -108,6 +105,7 @@ def login_teacher(username, password):
 def logout():
     st.session_state['auth_status'] = None
     st.session_state['current_user'] = None
+    st.session_state['finger_folder'] = {}
     st.session_state['results'] = {}
     st.rerun()
 
@@ -123,11 +121,16 @@ def main():
         st.markdown("---")
         
         if st.session_state['auth_status']:
-            st.success(f"👤 Aktif: **{st.session_state['current_user']}**")
+            st.success(f"👤 **{st.session_state['current_user']}**")
+            # İlerleme Durumu (Sidebar'da gösterim)
+            if st.session_state['auth_status'] == 'student':
+                count = len(st.session_state['finger_folder'])
+                st.progress(count / 10, text=f"Dosya Durumu: {count}/10")
+            
+            st.markdown("---")
             if st.button("🚪 Çıkış Yap", use_container_width=True):
                 logout()
         
-        st.markdown("---")
         st.caption("🔒 Güvenli Veri Tabanı")
 
     # --- GİRİŞ EKRANI ---
@@ -154,131 +157,135 @@ def main():
                 if st.button("🔐 Yönetici Girişi", use_container_width=True):
                     login_teacher(t_user, t_pass)
 
-    # --- ÖĞRENCİ EKRANI (ANALİZ) ---
+    # --- ÖĞRENCİ EKRANI (TOPLU YÜKLEME MODU) ---
     elif st.session_state['auth_status'] == 'student':
         
-        # --- DETAYLI YÖNERGE ---
+        # 1. Başlık ve Yönerge
         st.markdown(f"## 🧬 Merhaba, {st.session_state['current_user']}")
         
-        with st.expander("ℹ️ UYGULAMA KULLANIM KILAVUZU (Lütfen Başlamadan Önce Okuyunuz)", expanded=True):
+        with st.expander("ℹ️ NASIL KULLANILIR? (Lütfen Okuyunuz)", expanded=False):
             st.markdown("""
             <div class="instruction-box">
-                <h4>📸 Fotoğraf Çekim Sırası ve Kuralları</h4>
-                <p>Doğru bir analiz raporu alabilmek için lütfen aşağıdaki adımları sırasıyla uygulayınız:</p>
-                <ol>
-                    <li><strong>Seçim:</strong> Kamera ile anlık çekim yapabilir veya galeriden fotoğraf yükleyebilirsiniz.</li>
-                    <li><strong>Odaklama (Çok Önemli):</strong> Telefon kamerasını parmağınıza yaklaştırın (Makro çekim). Parmak izi çizgileri net olmalıdır.</li>
-                    <li><strong>Sıralama:</strong> Lütfen parmak sırasına riayet ediniz (L1 -> R5).</li>
-                </ol>
+                <b>Adım 1:</b> Aşağıdan bir parmak seçin (Örn: Sol Başparmak).<br>
+                <b>Adım 2:</b> Kamera veya Galeri ile fotoğrafı yükleyin.<br>
+                <b>Adım 3:</b> '📂 Klasöre Kaydet' butonuna basın. (Bunu 10 parmak için yapın).<br>
+                <b>Adım 4:</b> Tüm parmaklar klasöre eklendikten sonra en alttaki '✅ ANALİZİ BAŞLAT' butonuna basın.
             </div>
             """, unsafe_allow_html=True)
 
+        # 2. DOSYA DURUM PANELİ (DASHBOARD)
+        st.markdown("### 📁 Dosya Klasörünüz")
+        st.caption("Aşağıdaki tablo yüklediğiniz parmakları gösterir. Lütfen tüm kutuları yeşil yapınız.")
+        
+        fingers_order = ["L1", "L2", "L3", "L4", "L5", "R1", "R2", "R3", "R4", "R5"]
+        fingers_names = {
+            "L1": "Sol Baş", "L2": "Sol İşaret", "L3": "Sol Orta", "L4": "Sol Yüzük", "L5": "Sol Serçe",
+            "R1": "Sağ Baş", "R2": "Sağ İşaret", "R3": "Sağ Orta", "R4": "Sağ Yüzük", "R5": "Sağ Serçe"
+        }
+
+        # 5'li iki satır halinde gösterim
+        cols = st.columns(5)
+        for i, f_code in enumerate(fingers_order[:5]): # Sol El
+            uploaded = f_code in st.session_state['finger_folder']
+            style = "status-done" if uploaded else "status-pending"
+            icon = "✅" if uploaded else "⭕"
+            cols[i].markdown(f"<div class='status-card {style}'>{icon} {fingers_names[f_code]}</div>", unsafe_allow_html=True)
+        
+        cols2 = st.columns(5)
+        for i, f_code in enumerate(fingers_order[5:]): # Sağ El
+            index = i
+            uploaded = f_code in st.session_state['finger_folder']
+            style = "status-done" if uploaded else "status-pending"
+            icon = "✅" if uploaded else "⭕"
+            cols2[index].markdown(f"<div class='status-card {style}'>{icon} {fingers_names[f_code]}</div>", unsafe_allow_html=True)
+
         st.markdown("---")
 
-        fingers = {
-            "L1": "Sol Başparmak", "L2": "Sol İşaret", "L3": "Sol Orta", "L4": "Sol Yüzük", "L5": "Sol Serçe",
-            "R1": "Sağ Başparmak", "R2": "Sağ İşaret", "R3": "Sağ Orta", "R4": "Sağ Yüzük", "R5": "Sağ Serçe"
-        }
+        # 3. YÜKLEME ALANI
+        col_left, col_right = st.columns([1, 1.5], gap="large")
         
-        # 1. PARMAK SEÇİMİ
-        col_sel1, col_sel2 = st.columns([1, 3])
-        with col_sel1:
-            st.markdown("### 👇 1. Adım: Parmak")
-        with col_sel2:
+        with col_left:
+            st.markdown("### 📸 Resim Ekleme")
+            
+            # Hangi parmak?
             selected_finger_code = st.selectbox(
-                "Analiz edilecek parmağı seçiniz:", 
-                list(fingers.keys()), 
-                format_func=lambda x: f"{x} - {fingers[x]}"
+                "1. Hangi parmağı yükleyeceksiniz?", 
+                list(fingers_names.keys()), 
+                format_func=lambda x: f"{x} - {fingers_names[x]}"
             )
 
-        col_img, col_res = st.columns(2, gap="large")
-        
-        with col_img:
-            st.markdown(f"#### 2. Adım: Görüntü Kaynağı")
-            
-            # --- YENİ EKLENEN KISIM: KAMERA / DOSYA SEÇİMİ ---
-            input_method = st.radio(
-                "Yükleme Yöntemi Seçiniz:",
-                ("📁 Galeriden Yükle", "📸 Kamera ile Çek"),
-                horizontal=True
-            )
+            # Kaynak Seçimi
+            input_method = st.radio("2. Yöntem Seçiniz:", ("📁 Galeri / Dosya", "📸 Kamera"), horizontal=True)
             
             uploaded_file = None
+            if input_method == "📁 Galeri / Dosya":
+                uploaded_file = st.file_uploader(f"{fingers_names[selected_finger_code]} Yükle", type=['png', 'jpg', 'jpeg'], key=f"up_{selected_finger_code}")
+            else:
+                uploaded_file = st.camera_input(f"{fingers_names[selected_finger_code]} Çek", key=f"cam_{selected_finger_code}")
+
+            # Klasöre Ekle Butonu
+            if uploaded_file:
+                # Önizleme
+                st.image(uploaded_file, width=150, caption="Önizleme")
+                if st.button(f"📂 {fingers_names[selected_finger_code]} Resmini Klasöre Koy", type="secondary"):
+                    # Byte verisini alıp hafızaya atıyoruz
+                    st.session_state['finger_folder'][selected_finger_code] = uploaded_file.getvalue()
+                    st.success(f"✅ {fingers_names[selected_finger_code]} klasöre eklendi! Sıradakine geçebilirsiniz.")
+                    time.sleep(1)
+                    st.rerun()
+
+        with col_right:
+            st.markdown("### 🏁 İşlemi Tamamla")
+            st.write("Klasörünüzde şu an **{}** adet parmak resmi var.".format(len(st.session_state['finger_folder'])))
             
-            if input_method == "📁 Galeriden Yükle":
-                uploaded_file = st.file_uploader(f"{fingers[selected_finger_code]} Resmi Seç", type=['png', 'jpg', 'jpeg'], key=f"uploader_{selected_finger_code}")
-                if uploaded_file:
-                    st.image(uploaded_file, caption="Seçilen Resim", width=300)
+            if len(st.session_state['finger_folder']) < 10:
+                st.warning("⚠️ Analizi başlatmak için lütfen 10 parmağın hepsini yükleyiniz.")
             else:
-                # Kamera Modu
-                camera_photo = st.camera_input(f"{fingers[selected_finger_code]} Çek", key=f"cam_{selected_finger_code}")
-                if camera_photo:
-                    uploaded_file = camera_photo # Kamera verisini uploaded_file değişkenine ata
-                    st.success("Fotoğraf Çekildi!")
-
-        with col_res:
-            st.markdown("#### 3. Adım: Yapay Zeka Analizi")
-            
-            if uploaded_file is not None:
-                if st.button("✨ BU PARMAĞI ANALİZ ET", use_container_width=True):
-                    with st.status("Grok AI Görüntüyü İşliyor...", expanded=True) as status:
-                        st.write("🔍 Görüntü netliği ve kontrastı işleniyor (OpenCV)...")
-                        time.sleep(0.5)
-                        st.write("🧬 Desen taranıyor (Loop/Whorl/Arch)...")
-                        
-                        image_bytes = uploaded_file.getvalue()
-                        result = grok_service.analyze_fingerprint(image_bytes, selected_finger_code)
-                        
-                        st.session_state['results'][selected_finger_code] = result
-                        status.update(label="✅ Analiz Başarılı!", state="complete", expanded=False)
-
-                    if result.get("type") == "Error":
-                        st.error(f"Hata: {result.get('note')}")
-                    else:
-                        st.success("Tespit Edildi!")
-                        st.markdown(f"""
-                        <div style="background-color: #f0fdf4; padding: 15px; border-radius: 10px; border: 1px solid #bbf7d0;">
-                            <h3 style="color: #166534; margin:0;">Sonuç: {result.get('type')}</h3>
-                            <p><strong>Ridge Count (RC):</strong> {result.get('rc')}</p>
-                            <p><strong>Güven:</strong> {result.get('confidence')}</p>
-                            <p style="font-size: 0.9em;"><em>"{result.get('dmit_insight')}"</em></p>
-                        </div>
-                        """, unsafe_allow_html=True)
-            else:
-                st.info("👈 Lütfen önce sol taraftan fotoğraf yükleyiniz veya çekiniz.")
-
-        st.markdown("---")
-        
-        st.markdown("### 🏁 Son Adım: Gönderim")
-        st.write("Tüm parmakları (L1'den R5'e kadar) analiz ettikten sonra aşağıdaki butona basınız.")
-        
-        if st.button("✅ TÜM ANALİZLERİ BİTİR VE ÖĞRETMENE GÖNDER", type="primary", use_container_width=True):
-            if len(st.session_state['results']) > 0:
-                student_full_name = st.session_state['current_user']
+                st.success("Tüm parmaklar hazır! Aşağıdaki butona basarak görüntü tespiti işlemini başlatabilirsiniz.")
                 
-                progress_text = "Veriler veritabanına işleniyor..."
-                my_bar = st.progress(0, text=progress_text)
-
-                for percent_complete, (f_code, data) in enumerate(st.session_state['results'].items()):
-                    db_manager.add_fingerprint_record(
-                        student_name=student_full_name,
-                        finger_code=f_code,
-                        image_path="memory",
-                        pattern_type=data.get("type", "Unknown"),
-                        ridge_count=data.get("rc", 0),
-                        confidence=data.get("confidence", "Low"),
-                        dmit_insight=data.get("dmit_insight", "")
-                    )
-                    time.sleep(0.1)
-                    my_bar.progress((percent_complete + 1) / len(st.session_state['results']), text=progress_text)
-                
-                my_bar.empty()
-                st.balloons()
-                st.success("🎉 Tebrikler! Verileriniz başarıyla kaydedildi. Öğretmeniniz raporu oluşturabilir.")
-                time.sleep(4)
-                logout()
-            else:
-                st.error("⚠️ Henüz hiç parmak analizi yapmadınız!")
+                # --- FİNAL BUTONU ---
+                if st.button("✅ TÜM RESİMLERİ SİSTEME YÜKLE VE ANALİZİ BAŞLAT", type="primary", use_container_width=True):
+                    
+                    progress_bar = st.progress(0, text="Görüntü tespiti başlatılıyor...")
+                    status_text = st.empty()
+                    
+                    student_full_name = st.session_state['current_user']
+                    total_files = len(st.session_state['finger_folder'])
+                    
+                    # DÖNGÜ: Her bir resmi sırayla Grok'a gönder
+                    for i, (f_code, img_bytes) in enumerate(st.session_state['finger_folder'].items()):
+                        
+                        status_text.text(f"⏳ İşleniyor: {fingers_names[f_code]} (Grok Vision + OpenCV)...")
+                        
+                        # 1. Analiz Et (Grok Service)
+                        result = grok_service.analyze_fingerprint(img_bytes, f_code)
+                        
+                        # 2. Veritabanına Kaydet
+                        db_manager.add_fingerprint_record(
+                            student_name=student_full_name,
+                            finger_code=f_code,
+                            image_path="memory", # Şimdilik fiziksel yol yok
+                            pattern_type=result.get("type", "Unknown"),
+                            ridge_count=result.get("rc", 0),
+                            confidence=result.get("confidence", "Low"),
+                            dmit_insight=result.get("dmit_insight", "")
+                        )
+                        
+                        # İlerleme Çubuğu Güncelle
+                        progress_bar.progress((i + 1) / total_files)
+                        time.sleep(0.5) # Kullanıcı görsün diye minik bekleme
+                    
+                    progress_bar.empty()
+                    status_text.empty()
+                    
+                    # Final Başarı Mesajı (Kullanıcının istediği metin)
+                    st.balloons()
+                    st.success("✅ Parmak resimleriniz başarıyla analiz edildi ve yetkili koçunuzun sistemine gönderildi.")
+                    
+                    # Hafızayı Temizle
+                    st.session_state['finger_folder'] = {}
+                    time.sleep(5)
+                    logout()
 
     # --- ÖĞRETMEN EKRANI ---
     elif st.session_state['auth_status'] == 'teacher':
