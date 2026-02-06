@@ -17,14 +17,17 @@ st.set_page_config(
 # Özel CSS Tasarımı
 st.markdown("""
 <style>
+    /* Genel Arka Plan */
     .stApp {
         background: linear-gradient(to bottom right, #f8fafc, #eef2ff);
         font-family: 'Segoe UI', sans-serif;
     }
+    
+    /* Başlıklar */
     h1 { color: #1e3a8a; font-weight: 800; }
     h2, h3 { color: #334155; }
     
-    /* Yönerge Kutusu */
+    /* Bilgi Kutusu */
     .instruction-box {
         background-color: #fffbeb;
         border-left: 5px solid #f59e0b;
@@ -32,9 +35,10 @@ st.markdown("""
         border-radius: 5px;
         margin-bottom: 20px;
         font-size: 0.95em;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
 
-    /* Durum Kartları */
+    /* Durum Kartları (Dashboard) */
     .status-card {
         padding: 10px;
         border-radius: 8px;
@@ -42,9 +46,19 @@ st.markdown("""
         font-weight: bold;
         margin-bottom: 5px;
         font-size: 0.85em;
+        transition: all 0.3s ease;
     }
-    .status-pending { background-color: #e2e8f0; color: #64748b; border: 1px dashed #cbd5e1; }
-    .status-done { background-color: #dcfce7; color: #166534; border: 1px solid #86efac; }
+    .status-pending { 
+        background-color: #e2e8f0; 
+        color: #64748b; 
+        border: 1px dashed #cbd5e1; 
+    }
+    .status-done { 
+        background-color: #dcfce7; 
+        color: #166534; 
+        border: 1px solid #86efac; 
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
 
     /* Butonlar */
     .stButton>button {
@@ -56,45 +70,56 @@ st.markdown("""
         transform: scale(1.02);
     }
     
-    /* Radio Butonu Özelleştirme */
+    /* Radio ve Selectbox İyileştirmeleri */
     div.row-widget.stRadio > div {
         flex-direction: row;
-        gap: 20px;
+        gap: 15px;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 2. SESSION STATE (HAFIZA)
+# 2. SESSION STATE (HAFIZA YÖNETİMİ)
 # -----------------------------------------------------------------------------
+# Kimlik Doğrulama Durumu
 if 'auth_status' not in st.session_state:
     st.session_state['auth_status'] = None
 if 'current_user' not in st.session_state:
     st.session_state['current_user'] = None
 
-# --- ÖNEMLİ: Geçici Resim Klasörü ---
-# Kullanıcı resimleri yükledikçe buraya dolacak. Analiz henüz yapılmayacak.
-if 'finger_folder' not in st.session_state:
-    st.session_state['finger_folder'] = {}  # Örn: {'L1': b'resim_data', 'R1': b'resim_data'}
+# Öğrenci Bilgileri (Yaş ve Cinsiyet)
+if 'student_age' not in st.session_state:
+    st.session_state['student_age'] = 12
+if 'student_gender' not in st.session_state:
+    st.session_state['student_gender'] = "Belirtilmemiş"
 
-# Sonuçların tutulduğu yer
+# Geçici Resim Klasörü (Toplu Yükleme İçin)
+if 'finger_folder' not in st.session_state:
+    st.session_state['finger_folder'] = {}
+
+# Sonuçlar
 if 'results' not in st.session_state:
     st.session_state['results'] = {}
 
+# Veritabanını Başlat
 db_manager.init_db()
 
 # -----------------------------------------------------------------------------
 # 3. YARDIMCI FONKSİYONLAR
 # -----------------------------------------------------------------------------
-def login_student(name, surname):
+def login_student(name, surname, age, gender):
+    """Öğrenci girişi yapar ve bilgileri hafızaya alır."""
     if name and surname:
         st.session_state['auth_status'] = 'student'
         st.session_state['current_user'] = f"{name} {surname}"
+        st.session_state['student_age'] = age
+        st.session_state['student_gender'] = gender
         st.rerun()
     else:
         st.warning("⚠️ Lütfen Ad ve Soyad alanlarını doldurunuz.")
 
 def login_teacher(username, password):
+    """Yönetici girişi yapar (Balaban Koçluk)."""
     if username == "Balaban Koçluk" and password == "Balaban_İstanbul_Gümüşhane":
         st.session_state['auth_status'] = 'teacher'
         st.session_state['current_user'] = "Yönetici (Balaban Koçluk)"
@@ -103,6 +128,7 @@ def login_teacher(username, password):
         st.error("❌ Hatalı kullanıcı adı veya şifre!")
 
 def logout():
+    """Çıkış yapar ve hafızayı temizler."""
     st.session_state['auth_status'] = None
     st.session_state['current_user'] = None
     st.session_state['finger_folder'] = {}
@@ -110,10 +136,10 @@ def logout():
     st.rerun()
 
 # -----------------------------------------------------------------------------
-# 4. ANA UYGULAMA
+# 4. ANA UYGULAMA AKIŞI
 # -----------------------------------------------------------------------------
 def main():
-    # --- YAN MENÜ ---
+    # --- YAN MENÜ (SIDEBAR) ---
     with st.sidebar:
         st.image("https://cdn-icons-png.flaticon.com/512/2920/2920349.png", width=80)
         st.title("DMIT Sistemi")
@@ -122,16 +148,23 @@ def main():
         
         if st.session_state['auth_status']:
             st.success(f"👤 **{st.session_state['current_user']}**")
-            # İlerleme Durumu (Sidebar'da gösterim)
+            
+            # Öğrenciyse detayları göster
             if st.session_state['auth_status'] == 'student':
+                st.caption(f"🎂 Yaş: {st.session_state['student_age']}")
+                st.caption(f"⚧️ Cinsiyet: {st.session_state['student_gender']}")
+                
+                # Dosya İlerleme Çubuğu
                 count = len(st.session_state['finger_folder'])
-                st.progress(count / 10, text=f"Dosya Durumu: {count}/10")
+                st.progress(count / 10, text=f"Dosya: {count}/10")
             
             st.markdown("---")
             if st.button("🚪 Çıkış Yap", use_container_width=True):
                 logout()
         
+        st.markdown("---")
         st.caption("🔒 Güvenli Veri Tabanı")
+        st.caption("© 2026 Balaban Koçluk")
 
     # --- GİRİŞ EKRANI ---
     if st.session_state['auth_status'] is None:
@@ -143,14 +176,26 @@ def main():
             
             tab_student, tab_teacher = st.tabs(["🎓 ÖĞRENCİ GİRİŞİ", "👨‍🏫 YÖNETİCİ GİRİŞİ"])
             
+            # 1. Öğrenci Giriş Sekmesi
             with tab_student:
+                st.markdown("### 📝 Öğrenci Bilgileri")
                 s_name = st.text_input("Adınız", placeholder="Örn: Ahmet")
                 s_surname = st.text_input("Soyadınız", placeholder="Örn: Yılmaz")
+                
+                # YENİ EKLENEN KISIM: YAŞ ve CİNSİYET
+                col_age, col_gender = st.columns(2)
+                with col_age:
+                    s_age = st.number_input("Yaşınız", min_value=3, max_value=90, value=12, step=1)
+                with col_gender:
+                    s_gender = st.selectbox("Cinsiyetiniz", ["Erkek", "Kadın"])
+                
                 st.markdown("<br>", unsafe_allow_html=True)
                 if st.button("🚀 Giriş Yap ve Başla", type="primary", use_container_width=True):
-                    login_student(s_name, s_surname)
+                    login_student(s_name, s_surname, s_age, s_gender)
             
+            # 2. Yönetici Giriş Sekmesi
             with tab_teacher:
+                st.markdown("### 🔒 Yetkili Girişi")
                 t_user = st.text_input("Kullanıcı Adı", placeholder="Kullanıcı Adı")
                 t_pass = st.text_input("Şifre", type="password", placeholder="Şifre")
                 st.markdown("<br>", unsafe_allow_html=True)
@@ -160,9 +205,10 @@ def main():
     # --- ÖĞRENCİ EKRANI (TOPLU YÜKLEME MODU) ---
     elif st.session_state['auth_status'] == 'student':
         
-        # 1. Başlık ve Yönerge
+        # Başlık ve Karşılama
         st.markdown(f"## 🧬 Merhaba, {st.session_state['current_user']}")
         
+        # Kullanım Kılavuzu
         with st.expander("ℹ️ NASIL KULLANILIR? (Lütfen Okuyunuz)", expanded=False):
             st.markdown("""
             <div class="instruction-box">
@@ -173,17 +219,20 @@ def main():
             </div>
             """, unsafe_allow_html=True)
 
-        # 2. DOSYA DURUM PANELİ (DASHBOARD)
+        # ---------------------------------------------------------
+        # BÖLÜM 1: DOSYA DURUM PANELİ (DASHBOARD)
+        # ---------------------------------------------------------
         st.markdown("### 📁 Dosya Klasörünüz")
         st.caption("Aşağıdaki tablo yüklediğiniz parmakları gösterir. Lütfen tüm kutuları yeşil yapınız.")
         
+        # Parmak İsimleri ve Sırası
         fingers_order = ["L1", "L2", "L3", "L4", "L5", "R1", "R2", "R3", "R4", "R5"]
         fingers_names = {
             "L1": "Sol Baş", "L2": "Sol İşaret", "L3": "Sol Orta", "L4": "Sol Yüzük", "L5": "Sol Serçe",
             "R1": "Sağ Baş", "R2": "Sağ İşaret", "R3": "Sağ Orta", "R4": "Sağ Yüzük", "R5": "Sağ Serçe"
         }
 
-        # 5'li iki satır halinde gösterim
+        # Dashboard Grid (5+5)
         cols = st.columns(5)
         for i, f_code in enumerate(fingers_order[:5]): # Sol El
             uploaded = f_code in st.session_state['finger_folder']
@@ -201,47 +250,51 @@ def main():
 
         st.markdown("---")
 
-        # 3. YÜKLEME ALANI
+        # ---------------------------------------------------------
+        # BÖLÜM 2: YÜKLEME ALANI (SOL TARAFA) & İŞLEM (SAĞ TARAF)
+        # ---------------------------------------------------------
         col_left, col_right = st.columns([1, 1.5], gap="large")
         
         with col_left:
             st.markdown("### 📸 Resim Ekleme")
             
-            # Hangi parmak?
+            # 1. Parmak Seçimi
             selected_finger_code = st.selectbox(
                 "1. Hangi parmağı yükleyeceksiniz?", 
                 list(fingers_names.keys()), 
                 format_func=lambda x: f"{x} - {fingers_names[x]}"
             )
 
-            # Kaynak Seçimi
+            # 2. Kaynak Seçimi (Dosya mı Kamera mı?)
             input_method = st.radio("2. Yöntem Seçiniz:", ("📁 Galeri / Dosya", "📸 Kamera"), horizontal=True)
             
             uploaded_file = None
+            
+            # Yönteme Göre Yükleyiciyi Göster
             if input_method == "📁 Galeri / Dosya":
                 uploaded_file = st.file_uploader(f"{fingers_names[selected_finger_code]} Yükle", type=['png', 'jpg', 'jpeg'], key=f"up_{selected_finger_code}")
             else:
                 uploaded_file = st.camera_input(f"{fingers_names[selected_finger_code]} Çek", key=f"cam_{selected_finger_code}")
 
-            # Klasöre Ekle Butonu
+            # 3. Klasöre Ekleme İşlemi
             if uploaded_file:
-                # Önizleme
                 st.image(uploaded_file, width=150, caption="Önizleme")
-                if st.button(f"📂 {fingers_names[selected_finger_code]} Resmini Klasöre Koy", type="secondary"):
-                    # Byte verisini alıp hafızaya atıyoruz
+                if st.button(f"📂 {fingers_names[selected_finger_code]} Resmini Klasöre Koy", type="secondary", use_container_width=True):
+                    # Resmi hafızaya al
                     st.session_state['finger_folder'][selected_finger_code] = uploaded_file.getvalue()
-                    st.success(f"✅ {fingers_names[selected_finger_code]} klasöre eklendi! Sıradakine geçebilirsiniz.")
-                    time.sleep(1)
-                    st.rerun()
+                    st.success(f"✅ {fingers_names[selected_finger_code]} eklendi!")
+                    time.sleep(0.5)
+                    st.rerun() # Ekranı yenile ki Dashboard güncellensin
 
         with col_right:
             st.markdown("### 🏁 İşlemi Tamamla")
-            st.write("Klasörünüzde şu an **{}** adet parmak resmi var.".format(len(st.session_state['finger_folder'])))
+            total_files = len(st.session_state['finger_folder'])
+            st.write(f"Klasörünüzde şu an **{total_files}** adet parmak resmi var.")
             
-            if len(st.session_state['finger_folder']) < 10:
+            if total_files < 10:
                 st.warning("⚠️ Analizi başlatmak için lütfen 10 parmağın hepsini yükleyiniz.")
             else:
-                st.success("Tüm parmaklar hazır! Aşağıdaki butona basarak görüntü tespiti işlemini başlatabilirsiniz.")
+                st.success("Tüm parmaklar hazır! Aşağıdaki butona basarak toplu analiz işlemini başlatabilirsiniz.")
                 
                 # --- FİNAL BUTONU ---
                 if st.button("✅ TÜM RESİMLERİ SİSTEME YÜKLE VE ANALİZİ BAŞLAT", type="primary", use_container_width=True):
@@ -249,10 +302,12 @@ def main():
                     progress_bar = st.progress(0, text="Görüntü tespiti başlatılıyor...")
                     status_text = st.empty()
                     
+                    # Kullanıcı Bilgileri
                     student_full_name = st.session_state['current_user']
-                    total_files = len(st.session_state['finger_folder'])
+                    s_age = st.session_state['student_age']
+                    s_gender = st.session_state['student_gender']
                     
-                    # DÖNGÜ: Her bir resmi sırayla Grok'a gönder
+                    # DÖNGÜ: Her bir resmi sırayla işle
                     for i, (f_code, img_bytes) in enumerate(st.session_state['finger_folder'].items()):
                         
                         status_text.text(f"⏳ İşleniyor: {fingers_names[f_code]} (Grok Vision + OpenCV)...")
@@ -260,29 +315,31 @@ def main():
                         # 1. Analiz Et (Grok Service)
                         result = grok_service.analyze_fingerprint(img_bytes, f_code)
                         
-                        # 2. Veritabanına Kaydet
+                        # 2. Veritabanına Kaydet (Yaş ve Cinsiyet İle Birlikte)
                         db_manager.add_fingerprint_record(
                             student_name=student_full_name,
+                            student_age=s_age,          # YENİ
+                            student_gender=s_gender,    # YENİ
                             finger_code=f_code,
-                            image_path="memory", # Şimdilik fiziksel yol yok
+                            image_path="memory",
                             pattern_type=result.get("type", "Unknown"),
                             ridge_count=result.get("rc", 0),
                             confidence=result.get("confidence", "Low"),
                             dmit_insight=result.get("dmit_insight", "")
                         )
                         
-                        # İlerleme Çubuğu Güncelle
-                        progress_bar.progress((i + 1) / total_files)
-                        time.sleep(0.5) # Kullanıcı görsün diye minik bekleme
+                        # İlerleme Çubuğu
+                        progress_bar.progress((i + 1) / 10)
+                        time.sleep(0.2) 
                     
                     progress_bar.empty()
                     status_text.empty()
                     
-                    # Final Başarı Mesajı (Kullanıcının istediği metin)
+                    # Final Mesajı
                     st.balloons()
                     st.success("✅ Parmak resimleriniz başarıyla analiz edildi ve yetkili koçunuzun sistemine gönderildi.")
                     
-                    # Hafızayı Temizle
+                    # Temizlik ve Çıkış
                     st.session_state['finger_folder'] = {}
                     time.sleep(5)
                     logout()
@@ -310,12 +367,24 @@ def main():
                 
                 if st.button("🧬 BALABAN GENETİK RAPORU OLUŞTUR", type="primary"):
                     with st.spinner("Yapay Zeka (Grok Reasoning) raporu yazıyor... Bu işlem detaylı olduğu için 1-2 dakika sürebilir."):
+                        # Öğrenci verilerini çek
                         finger_data = db_manager.get_student_data(selected_student)
+                        
                         if finger_data.empty:
                             st.error("Bu öğrenciye ait veri bulunamadı.")
                         else:
+                            # Yaş ve Cinsiyet Bilgisini Veritabanından Al (İlk satırdan)
+                            # (Çünkü aynı öğrencinin tüm parmaklarında bu bilgi aynıdır)
+                            real_age = finger_data.iloc[0]['student_age']
+                            real_gender = finger_data.iloc[0]['student_gender']
+                            
+                            st.caption(f"Veritabanı Bilgisi -> Yaş: {real_age}, Cinsiyet: {real_gender}")
+
+                            # Puanları Hesapla
                             scores = db_manager.calculate_dmit_scores(finger_data)
-                            report_text = grok_service.generate_nobel_report(selected_student, 12, finger_data, scores)
+                            
+                            # Raporu Oluştur (Yaş ve Cinsiyet Parametreleri ile)
+                            report_text = grok_service.generate_nobel_report(selected_student, real_age, real_gender, finger_data, scores)
                             
                             st.markdown("---")
                             st.markdown(report_text)
