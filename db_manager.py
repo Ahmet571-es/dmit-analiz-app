@@ -2,7 +2,7 @@ import sqlite3
 import pandas as pd
 import os
 
-DB_NAME = "dmit_system.db"
+DB_NAME = "dmit_system_v2.db"
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
@@ -88,3 +88,4 @@ def calculate_dmit_scores(df):
         }
     }
     return scores
+
