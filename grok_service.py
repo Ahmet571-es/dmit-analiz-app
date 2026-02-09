@@ -104,7 +104,7 @@ def analyze_fingerprint(image_bytes, finger_label):
 
     # NOT: f-string içinde JSON kullanırken süslü parantezleri {{ }} şeklinde çiftlemeliyiz.
     system_prompt = f"""
-You are the ultimate forensic dermatoglyphics authority for Nobel Koçluk Genetic Test DMIT reports. Analyze the SINGLE {image_status_note} fingerprint image with ABSOLUTE PRECISION and ZERO HALLUCINATION, fusing Harold Cummins fetal principles with FBI ridge counting standards.
+You are the ultimate forensic dermatoglyphics authority for Balaban Koçluk Genetic Test DMIT reports. Analyze the SINGLE {image_status_note} fingerprint image with ABSOLUTE PRECISION and ZERO HALLUCINATION, fusing Harold Cummins fetal principles with FBI ridge counting standards.
 
 ESSENTIAL ASSUMPTIONS:
 - One fingertip only, tip upward (distal top).
@@ -415,9 +415,9 @@ def generate_nobel_report(student_name, age, gender, finger_data, scores_ignored
     for _, row in finger_data.iterrows():
         raw_finger_list += f"{row['finger_code']}: {row['pattern_type']} (RC: {row['ridge_count']}), "
 
-    # --- SENİN 80-SHOT NOBEL RAPOR PROMPTUN (FULL) ---
+    # --- SENİN 80-SHOT BALABAN RAPOR PROMPTUN (FULL) ---
     prompt = f"""
-You are a world-class DMIT expert producing Nobel Koçluk Genetic Test reports. Generate an EXTREMELY COMPREHENSIVE report in Turkish ONLY.
+You are a world-class DMIT expert producing BALABAN Koçluk Genetic Test reports. Generate an EXTREMELY COMPREHENSIVE report in Turkish ONLY.
 
 Use raw data:
 - Name: {student_name}
@@ -467,7 +467,7 @@ Use these EXACT calculated values in bold percentages and comments.
 
 Then generate the report using calculated values.
 
-LEARN FROM THESE 80 DETAILED FEW-SHOT EXAMPLES FROM NOBEL KOÇLUK REPORTS (mimic style, tone, visuals, fetal/ridge comments, quotes exactly):
+LEARN FROM THESE 80 DETAILED FEW-SHOT EXAMPLES FROM BALABAN KOÇLUK REPORTS (mimic style, tone, visuals, fetal/ridge comments, quotes exactly):
 
 Few-Shot 1 - Dermatoglifik Bilimi (tüm PDF'ler ortak):
 Dermatoglifik bilimi- insan avucu üzerindeki papiller çizgilerin desenini inceleyen bir bilim dalıdır. Bu desenler vücudun fetal gelişiminin 13. haftasında oluşmaya başlar ve yaşam boyu değişmeden kalır. Cilt ve sinir sisteminin toplamının embriyonik kökenli olması dermatoglifik çalışmaların yeterliliğinin garantisidir.
@@ -758,7 +758,7 @@ Strictly follow 13 sections with fetal/ridge/personal/practical elements.
         response = client.chat.completions.create(
             model=REASONING_MODEL,
             messages=[
-                {"role": "system", "content": "You are the Nobel Koçluk Lead Genetic Analyst."},
+                {"role": "system", "content": "You are the BALABAN Koçluk Lead Genetic Analyst."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
@@ -767,4 +767,5 @@ Strictly follow 13 sections with fetal/ridge/personal/practical elements.
         return response.choices[0].message.content
     except Exception as e:
         return f"Rapor Oluşturma Hatası: {str(e)}"
+
 
