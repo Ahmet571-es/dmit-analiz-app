@@ -393,8 +393,8 @@ If truly impossible: {{ "type": "Unknown", "rc": 0, "confidence": "Low", "note":
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": [{"type": "text", "text": f"Analyze this fingerprint. Label: {finger_label}. Status: {image_status_note}"}, {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}
             ],
-            temperature=0.0, # Matematiksel kesinlik için 0
-            max_tokens=1000, # Büyük prompt için token arttırıldı
+            temperature=0.0,
+            max_tokens=1000,
         )
         content = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
         return json.loads(content)
@@ -767,5 +767,3 @@ Strictly follow 13 sections with fetal/ridge/personal/practical elements.
         return response.choices[0].message.content
     except Exception as e:
         return f"Rapor Oluşturma Hatası: {str(e)}"
-
-
