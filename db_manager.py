@@ -2,6 +2,7 @@ import sqlite3
 import pandas as pd
 import os
 
+# Versiyon 2: Yeni şema için isim değişikliği (Eski hataları önler)
 DB_NAME = "dmit_system_v2.db"
 
 def init_db():
@@ -33,7 +34,7 @@ def add_fingerprint_record(student_name, student_age, student_gender, finger_cod
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     
-    # Eski kaydı temizle
+    # Eski kaydı temizle (Aynı parmak için güncelleme mantığı)
     c.execute("DELETE FROM fingerprints WHERE student_name = ? AND finger_code = ?", (student_name, finger_code))
     
     # Yeni verileri ekle
@@ -71,8 +72,9 @@ def calculate_dmit_scores(df):
         return {}
 
     total_rc = df['ridge_count'].sum()
+    # Pattern analizleri (Pattern Type içinde geçen harfe göre sayar)
     whorl_count = len(df[df['pattern_type'].str.contains('W', na=False)])
-    loop_count = len(df[df['pattern_type'].str.contains('L', na=False)])
+    loop_count = len(df[df['pattern_type'].str.contains('L', na=False)]) # UL, RL, L hepsi dahil
     
     scores = {
         "tfrc": int(total_rc),
@@ -88,4 +90,3 @@ def calculate_dmit_scores(df):
         }
     }
     return scores
-
