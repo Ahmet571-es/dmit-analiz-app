@@ -1,14 +1,19 @@
 import streamlit as st
 import pandas as pd
+import time
+import plotly.graph_objects as go
+import plotly.express as px
+
+# Yerel Modüller
 import db_manager
 import grok_service
-import time
+import image_utils  # Bulanıklık kontrolü için şart
 
 # -----------------------------------------------------------------------------
 # 1. SAYFA VE TASARIM AYARLARI
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="DMIT Genetik Analiz",
+    page_title="DMIT Genetik Analiz | Balaban Koçluk",
     page_icon="🧬",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -136,7 +141,93 @@ def logout():
     st.rerun()
 
 # -----------------------------------------------------------------------------
-# 4. ANA UYGULAMA AKIŞI
+# 4. GÖRSELLEŞTİRME FONKSİYONU (PLOTLY DASHBOARD)
+# -----------------------------------------------------------------------------
+def render_dmit_dashboard(scores):
+    """
+    Öğrenci puanlarını alıp Plotly ile profesyonel grafikler çizer.
+    """
+    if not scores: return
+
+    # --- VERİ HAZIRLIĞI ---
+    lobes = scores.get("lobes", {})
+    tfrc = scores.get("tfrc", 100)
+    
+    # Grupları Hesapla (Grok Service Mantığıyla - Görsel Tahmin)
+    teknik = lobes.get('prefrontal',0) + lobes.get('parietal',0)
+    sosyal = lobes.get('temporal',0) + lobes.get('frontal',0)
+    matematik = lobes.get('frontal',0) + lobes.get('parietal',0)
+    fen = lobes.get('occipital',0) + lobes.get('parietal',0)
+    
+    # 1. TFRC GÖSTERGESİ (GAUGE CHART)
+    fig_gauge = go.Figure(go.Indicator(
+        mode = "gauge+number",
+        value = tfrc,
+        title = {'text': "Toplam Öğrenme Kapasitesi (TFRC)"},
+        gauge = {
+            'axis': {'range': [None, 200]},
+            'bar': {'color': "#1e3a8a"},
+            'steps' : [
+                {'range': [0, 90], 'color': "#fee2e2"},   # Düşük
+                {'range': [90, 140], 'color': "#fef3c7"}, # Normal
+                {'range': [140, 200], 'color': "#dcfce7"}], # Yüksek
+            'threshold' : {'line': {'color': "red", 'width': 4}, 'thickness': 0.75, 'value': tfrc}}
+    ))
+    
+    # 2. BEYİN LOBLARI RADAR GRAFİĞİ
+    l_vals = list(lobes.values())
+    l_keys = list(lobes.keys())
+    tr_map = {
+        'prefrontal': 'Prefrontal (Yönetim)',
+        'frontal': 'Frontal (Mantık)',
+        'parietal': 'Parietal (Bedensel)',
+        'temporal': 'Temporal (İşitsel)',
+        'occipital': 'Oksipital (Görsel)'
+    }
+    r_keys = [tr_map.get(k, k) for k in l_keys]
+    
+    fig_radar = go.Figure(data=go.Scatterpolar(
+        r=l_vals,
+        theta=r_keys,
+        fill='toself',
+        name='Beyin Lobları',
+        line_color='#7c3aed'
+    ))
+    fig_radar.update_layout(
+        polar=dict(radialaxis=dict(visible=True, range=[0, max(l_vals)+10])),
+        title="Beyin Lobu Dağılımı",
+        margin=dict(t=40, b=40, l=40, r=40)
+    )
+
+    # 3. YETENEK ALANLARI (BAR CHART)
+    cats = ['Teknik / Mühendislik', 'Sosyal / Dil', 'Matematik / Mantık', 'Fen / Doğa']
+    vals = [teknik, sosyal, matematik, fen]
+    colors = ['#3b82f6', '#ec4899', '#f59e0b', '#10b981']
+    
+    fig_bar = go.Figure(go.Bar(
+        x=vals,
+        y=cats,
+        orientation='h',
+        marker_color=colors,
+        text=vals,
+        textposition='auto'
+    ))
+    fig_bar.update_layout(title="Yetenek Alanları Puanı", margin=dict(t=30, b=30, l=30, r=30))
+
+    # --- GRAFİKLERİ EKRANA BAS ---
+    st.markdown("### 📊 Görsel Analiz Özeti")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.plotly_chart(fig_gauge, use_container_width=True)
+    with col2:
+        st.plotly_chart(fig_radar, use_container_width=True)
+        
+    st.plotly_chart(fig_bar, use_container_width=True)
+    st.markdown("---")
+
+# -----------------------------------------------------------------------------
+# 5. ANA UYGULAMA AKIŞI
 # -----------------------------------------------------------------------------
 def main():
     # --- YAN MENÜ (SIDEBAR) ---
@@ -182,7 +273,7 @@ def main():
                 s_name = st.text_input("Adınız", placeholder="Örn: Ahmet")
                 s_surname = st.text_input("Soyadınız", placeholder="Örn: Yılmaz")
                 
-                # YENİ EKLENEN KISIM: YAŞ ve CİNSİYET
+                # YAŞ ve CİNSİYET
                 col_age, col_gender = st.columns(2)
                 with col_age:
                     s_age = st.number_input("Yaşınız", min_value=3, max_value=90, value=12, step=1)
@@ -251,7 +342,7 @@ def main():
         st.markdown("---")
 
         # ---------------------------------------------------------
-        # BÖLÜM 2: YÜKLEME ALANI (SOL TARAFA) & İŞLEM (SAĞ TARAF)
+        # BÖLÜM 2: YÜKLEME ALANI & İŞLEM
         # ---------------------------------------------------------
         col_left, col_right = st.columns([1, 1.5], gap="large")
         
@@ -265,26 +356,34 @@ def main():
                 format_func=lambda x: f"{x} - {fingers_names[x]}"
             )
 
-            # 2. Kaynak Seçimi (Dosya mı Kamera mı?)
+            # 2. Kaynak Seçimi
             input_method = st.radio("2. Yöntem Seçiniz:", ("📁 Galeri / Dosya", "📸 Kamera"), horizontal=True)
             
             uploaded_file = None
-            
-            # Yönteme Göre Yükleyiciyi Göster
             if input_method == "📁 Galeri / Dosya":
                 uploaded_file = st.file_uploader(f"{fingers_names[selected_finger_code]} Yükle", type=['png', 'jpg', 'jpeg'], key=f"up_{selected_finger_code}")
             else:
                 uploaded_file = st.camera_input(f"{fingers_names[selected_finger_code]} Çek", key=f"cam_{selected_finger_code}")
 
-            # 3. Klasöre Ekleme İşlemi
+            # 3. Klasöre Ekleme İşlemi (BULANIKLIK KONTROLÜ İLE)
             if uploaded_file:
                 st.image(uploaded_file, width=150, caption="Önizleme")
+                img_bytes = uploaded_file.getvalue()
+
+                # --- YENİ: DEDEKTİF (BULANIKLIK KONTROLÜ) ---
+                # image_utils.py içinde check_image_quality fonksiyonu olmalı
+                is_ok, score, msg = image_utils.check_image_quality(img_bytes)
+
                 if st.button(f"📂 {fingers_names[selected_finger_code]} Resmini Klasöre Koy", type="secondary", use_container_width=True):
-                    # Resmi hafızaya al
-                    st.session_state['finger_folder'][selected_finger_code] = uploaded_file.getvalue()
-                    st.success(f"✅ {fingers_names[selected_finger_code]} eklendi!")
-                    time.sleep(0.5)
-                    st.rerun() # Ekranı yenile ki Dashboard güncellensin
+                    if not is_ok:
+                        # Bulanık ise kaydetme, hata ver
+                        st.error(msg)
+                    else:
+                        # Net ise kaydet
+                        st.session_state['finger_folder'][selected_finger_code] = img_bytes
+                        st.success(f"✅ Eklendi! (Netlik Puanı: {int(score)})")
+                        time.sleep(0.5)
+                        st.rerun()
 
         with col_right:
             st.markdown("### 🏁 İşlemi Tamamla")
@@ -315,11 +414,11 @@ def main():
                         # 1. Analiz Et (Grok Service)
                         result = grok_service.analyze_fingerprint(img_bytes, f_code)
                         
-                        # 2. Veritabanına Kaydet (Yaş ve Cinsiyet İle Birlikte)
+                        # 2. Veritabanına Kaydet
                         db_manager.add_fingerprint_record(
                             student_name=student_full_name,
-                            student_age=s_age,          # YENİ
-                            student_gender=s_gender,    # YENİ
+                            student_age=s_age,
+                            student_gender=s_gender,
                             finger_code=f_code,
                             image_path="memory",
                             pattern_type=result.get("type", "Unknown"),
@@ -328,18 +427,15 @@ def main():
                             dmit_insight=result.get("dmit_insight", "")
                         )
                         
-                        # İlerleme Çubuğu
                         progress_bar.progress((i + 1) / 10)
                         time.sleep(0.2) 
                     
                     progress_bar.empty()
                     status_text.empty()
                     
-                    # Final Mesajı
                     st.balloons()
                     st.success("✅ Parmak resimleriniz başarıyla analiz edildi ve yetkili koçunuzun sistemine gönderildi.")
                     
-                    # Temizlik ve Çıkış
                     st.session_state['finger_folder'] = {}
                     time.sleep(5)
                     logout()
@@ -366,32 +462,33 @@ def main():
                 st.info(f"Seçilen Öğrenci: **{selected_student}**")
                 
                 if st.button("🧬 BALABAN GENETİK RAPORU OLUŞTUR", type="primary"):
-                    with st.spinner("Yapay Zeka (Grok Reasoning) raporu yazıyor... Bu işlem detaylı olduğu için 1-2 dakika sürebilir."):
-                        # Öğrenci verilerini çek
-                        finger_data = db_manager.get_student_data(selected_student)
+                    
+                    # 1. Verileri Çek
+                    finger_data = db_manager.get_student_data(selected_student)
+                    
+                    if finger_data.empty:
+                        st.error("Bu öğrenciye ait veri bulunamadı.")
+                    else:
+                        try:
+                            real_age = finger_data.iloc[0]['student_age']
+                            real_gender = finger_data.iloc[0]['student_gender']
+                        except KeyError:
+                            real_age = 12
+                            real_gender = "Belirtilmemiş"
                         
-                        if finger_data.empty:
-                            st.error("Bu öğrenciye ait veri bulunamadı.")
-                        else:
-                            # Yaş ve Cinsiyet Bilgisini Veritabanından Al (İlk satırdan)
-                            # (Çünkü aynı öğrencinin tüm parmaklarında bu bilgi aynıdır)
-                            try:
-                                real_age = finger_data.iloc[0]['student_age']
-                                real_gender = finger_data.iloc[0]['student_gender']
-                            except KeyError:
-                                # Eski veritabanı uyuşmazlığı varsa varsayılan ata
-                                real_age = 12
-                                real_gender = "Belirtilmemiş"
-                            
-                            st.caption(f"Veritabanı Bilgisi -> Yaş: {real_age}, Cinsiyet: {real_gender}")
+                        st.caption(f"Veritabanı Bilgisi -> Yaş: {real_age}, Cinsiyet: {real_gender}")
 
-                            # Puanları Hesapla
-                            scores = db_manager.calculate_dmit_scores(finger_data)
-                            
-                            # Raporu Oluştur (Yaş ve Cinsiyet Parametreleri ile)
+                        # 2. Puanları Hesapla
+                        scores = db_manager.calculate_dmit_scores(finger_data)
+                        
+                        # 3. GRAFİK PANELİNİ GÖSTER (YENİ)
+                        render_dmit_dashboard(scores)
+
+                        # 4. Raporu Oluştur (Yapay Zeka)
+                        with st.spinner("Yapay Zeka (Grok Reasoning) detaylı metin raporunu yazıyor..."):
                             report_text = grok_service.generate_nobel_report(selected_student, real_age, real_gender, finger_data, scores)
                             
-                            st.markdown("---")
+                            st.markdown("### 📝 Detaylı Yazılı Rapor")
                             st.markdown(report_text)
                             st.download_button(
                                 label="📥 Raporu İndir (MD/PDF)",
