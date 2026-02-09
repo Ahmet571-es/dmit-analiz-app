@@ -375,8 +375,13 @@ def main():
                         else:
                             # Yaş ve Cinsiyet Bilgisini Veritabanından Al (İlk satırdan)
                             # (Çünkü aynı öğrencinin tüm parmaklarında bu bilgi aynıdır)
-                            real_age = finger_data.iloc[0]['student_age']
-                            real_gender = finger_data.iloc[0]['student_gender']
+                            try:
+                                real_age = finger_data.iloc[0]['student_age']
+                                real_gender = finger_data.iloc[0]['student_gender']
+                            except KeyError:
+                                # Eski veritabanı uyuşmazlığı varsa varsayılan ata
+                                real_age = 12
+                                real_gender = "Belirtilmemiş"
                             
                             st.caption(f"Veritabanı Bilgisi -> Yaş: {real_age}, Cinsiyet: {real_gender}")
 
